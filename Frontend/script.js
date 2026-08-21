@@ -1,137 +1,201 @@
-/**
- * SMART CITY INFRASTRUCTURE LIFECYCLE ENGINE
- *
- * Current version:
- * Frontend prototype
- *
- * Future:
- * FastAPI + PostgreSQL/Supabase + ML model + GIS services
- */
+// ======================================================
+// SMART CITY INFRASTRUCTURE ENGINE
+// Supabase + Camera + GPS + GIS + AI Simulation
+// ======================================================
 
 
-/* =====================================================
-   CENTRAL DATA
-===================================================== */
+// ======================================================
+// 1. SUPABASE CONFIGURATION
+// ======================================================
+
+const SUPABASE_URL = "https://jdymqqjylrjhrhqdakfq.supabase.co";
+
+const SUPABASE_PUBLISHABLE_KEY =
+    "sb_publishable_nBBSroTBJ2xA2mhVGWIqDg_QreS1dwI";
+
+const supabaseClient = supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_PUBLISHABLE_KEY
+);
+
+
+// ======================================================
+// 2. SUPABASE CONNECTION TEST
+// ======================================================
+
+async function testSupabaseConnection() {
+
+    const { data, error } =
+        await supabaseClient.auth.getSession();
+
+    if (error) {
+        console.error(
+            "❌ Supabase connection failed:",
+            error
+        );
+        return;
+    }
+
+    console.log(
+        "✅ Supabase connected successfully!"
+    );
+
+    console.log("Session:", data);
+}
+
+testSupabaseConnection();
+
+async function saveComplaintToSupabase() {
+
+    // Check whether image exists
+    if (!currentReport.image) {
+        alert("Please capture or upload an image first.");
+        return false;
+    }
+
+    // Check whether GPS exists
+    if (!currentReport.coords) {
+        alert("Please capture your GPS location first.");
+        return false;
+    }
+
+    // Get citizen notes
+    const notesElement = document.getElementById("report-notes");
+
+    const notes = notesElement
+        ? notesElement.value.trim()
+        : "";
+
+    // Create complaint data
+    const complaintData = {
+        complaint_id: "CR-" + Date.now(),
+
+        user_id: null,
+
+        image_url: currentReport.image,
+
+        latitude: currentReport.coords.lat,
+
+        longitude: currentReport.coords.lng,
+
+        accuracy: currentReport.coords.acc,
+
+        notes: notes,
+
+        status: "Reported"
+    };
+
+    console.log("Sending complaint to Supabase:", complaintData);
+
+    // Insert into Supabase
+    const { data, error } = await supabaseClient
+        .from("complaints")
+        .insert([complaintData])
+        .select();
+
+    // Handle error
+    if (error) {
+
+        console.error(
+            "Complaint insertion failed:",
+            error
+        );
+
+        alert(
+            "Failed to submit complaint.\n\n" +
+            error.message
+        );
+
+        return false;
+    }
+
+    // Success
+    console.log(
+        "Complaint saved successfully:",
+        data
+    );
+
+    // Store returned complaint
+    if (data && data.length > 0) {
+        currentReport.complaintId =
+            data[0].complaint_id;
+
+        currentReport.databaseId =
+            data[0].id;
+    }
+
+    return true;
+}
+
+
+// ======================================================
+// 3. CENTRAL MOCK DATA
+// ======================================================
 
 const mockData = {
 
     complaints: [
-
         {
             id: "CR-1024",
             type: "Pothole",
             severity: "High",
             priority: 87,
-
             status: "Contractor Assigned",
-
+            lat: 16.12345,
+            lng: 80.12345,
             city: "Guntur",
-            area: "Ward 12",
-
-            latitude: 16.12345,
-            longitude: 80.12345,
-
-            accuracy: 12,
-
-            waterRisk: "High",
-
-            drainageDistance: 42,
-
-            workOrderId: "WO-102"
+            waterRisk: "High"
         },
 
         {
             id: "CR-1025",
-            type: "Structural Defect",
+            type: "Structural",
             severity: "Medium",
             priority: 45,
-
             status: "Verified",
-
+            lat: 16.12500,
+            lng: 80.12600,
             city: "Guntur",
-            area: "Ward 8",
-
-            latitude: 16.12500,
-            longitude: 80.12600,
-
-            accuracy: 15,
-
-            waterRisk: "Medium",
-
-            drainageDistance: 85,
-
-            workOrderId: null
+            waterRisk: "Medium"
         }
-
     ],
 
-
     drainage: [
-
         {
-            latitude: 16.12380,
-            longitude: 80.12390,
-
+            lat: 16.12380,
+            lng: 80.12390,
             type: "Main Drain",
             risk: "High"
         }
-
     ],
-
 
     waterlogging: [
-
         {
-            latitude: 16.12420,
-            longitude: 80.12410,
-
+            lat: 16.12420,
+            lng: 80.12450,
+            type: "Waterlogging Hotspot",
             risk: "High"
         }
-
     ],
 
-
-    workOrders: [
-
+    contractors: [
         {
-            id: "WO-102",
-
-            complaintId: "CR-1024",
-
-            type: "Pothole Repair",
-
-            priority: 87,
-
-            location: "Ward 12, Guntur",
-
-            latitude: 16.12345,
-            longitude: 80.12345,
-
-            status: "Assigned",
-
-            contractor: "ABC Road Works",
-
-            assignedDate: "2026-08-21",
-
-            description:
-                "Repair high-severity pothole near drainage corridor.",
-
-            beforeImage: null,
-
-            afterImage: null,
-
-            verification: "Pending"
-
+            id: "CON-001",
+            name: "Urban Roads Contractors",
+            status: "Available"
+        },
+        {
+            id: "CON-002",
+            name: "City Infrastructure Works",
+            status: "Busy"
         }
-
     ]
-
 };
 
 
-/* =====================================================
-   CURRENT REPORT
-===================================================== */
+// ======================================================
+// 4. CURRENT REPORT
+// ======================================================
 
 let currentReport = {
 
@@ -139,329 +203,235 @@ let currentReport = {
 
     image: null,
 
+    imageFile: null,
+
     coords: null,
 
     notes: "",
 
-    city: "",
+    city: null,
 
-    address: "",
+    defectType: null,
 
-    defectType: "Pothole"
+    severity: null,
 
+    priority: null,
+
+    waterRisk: null,
+
+    drainageNearby: null,
+
+    timestamp: null
 };
 
 
-let currentRole = null;
+// ======================================================
+// 5. GLOBAL VARIABLES
+// ======================================================
 
 let videoStream = null;
 
-let citizenMap = null;
+let mapInstance = null;
 
-let officerMap = null;
+let officerMapInstance = null;
+
+let currentLocationMarker = null;
 
 
-/* =====================================================
-   NAVIGATION
-===================================================== */
+// ======================================================
+// 6. VIEW NAVIGATION
+// ======================================================
 
 function showView(viewId) {
 
     document
         .querySelectorAll(".view")
         .forEach(view => {
-
             view.classList.add("hidden");
-
         });
 
+    const target =
+        document.getElementById(viewId);
 
-    const target = document.getElementById(viewId);
-
-    if (!target) return;
+    if (!target) {
+        console.error(
+            "View not found:",
+            viewId
+        );
+        return;
+    }
 
     target.classList.remove("hidden");
 
 
-    const nav = document.getElementById("app-nav");
+    // Login navigation
 
     if (viewId === "view-login") {
 
-        nav.classList.add("hidden");
+        document
+            .getElementById("app-nav")
+            .classList.add("hidden");
 
     } else {
 
-        nav.classList.remove("hidden");
+        document
+            .getElementById("app-nav")
+            .classList.remove("hidden");
 
         renderNavLinks();
-
     }
 
+
+    // Officer dashboard
 
     if (viewId === "view-officer-dash") {
 
-        setTimeout(initOfficerDashboard, 100);
-
+        setTimeout(() => {
+            initOfficerDashboard();
+        }, 100);
     }
 
 
-    if (viewId === "view-contractor-dash") {
+    // Citizen dashboard
 
-        renderContractorDashboard();
+    if (viewId === "view-citizen-dash") {
 
+        renderCitizenHistory();
     }
-
 }
 
 
-/* =====================================================
-   ROLE NAVIGATION
-===================================================== */
+// ======================================================
+// 7. NAVIGATION LINKS
+// ======================================================
 
 function renderNavLinks() {
+
+    const roleElement =
+        document.getElementById("login-role");
 
     const container =
         document.getElementById("nav-links");
 
+    if (!roleElement || !container) {
+        return;
+    }
 
-    if (!container) return;
+    const role =
+        roleElement.value;
+
+    let links = "";
 
 
-    if (currentRole === "citizen") {
+    if (role === "citizen") {
 
-        container.innerHTML = `
-
+        links = `
             <a onclick="showView('view-citizen-dash')">
                 Dashboard
             </a>
 
-            <a onclick="startNewReport()">
+            <a onclick="showView('view-report-wizard')">
                 Report Problem
             </a>
-
         `;
 
-    }
+    } else if (role === "officer") {
 
-
-    else if (currentRole === "officer") {
-
-        container.innerHTML = `
-
+        links = `
             <a onclick="showView('view-officer-dash')">
                 Command Center
             </a>
 
-        `;
-
-    }
-
-
-    else if (currentRole === "contractor") {
-
-        container.innerHTML = `
-
-            <a onclick="showView('view-contractor-dash')">
-                Work Center
+            <a onclick="showView('view-officer-dash')">
+                GIS Map
             </a>
-
         `;
 
+    } else if (role === "contractor") {
+
+        links = `
+            <a onclick="showContractorDashboard()">
+                Contractor Dashboard
+            </a>
+        `;
     }
 
+    container.innerHTML = links;
 }
 
 
-/* =====================================================
-   LOGIN
-===================================================== */
+// ======================================================
+// 8. MOCK LOGIN
+// ======================================================
 
 function handleLogin() {
 
-    currentRole =
-        document.getElementById("login-role").value;
+    const roleElement =
+        document.getElementById("login-role");
+
+    const role =
+        roleElement.value;
 
 
     const badge =
         document.getElementById("nav-role-badge");
 
+    if (badge) {
 
-    badge.innerText =
-        getRoleName(currentRole);
-
-
-    if (currentRole === "citizen") {
-
-        renderCitizenHistory();
-
-        showView("view-citizen-dash");
-
+        badge.innerText =
+            role === "officer"
+                ? "Municipal Officer"
+                : role === "contractor"
+                    ? "Contractor"
+                    : "Citizen";
     }
 
 
-    else if (currentRole === "officer") {
+    if (role === "officer") {
 
         showView("view-officer-dash");
 
+    } else if (role === "contractor") {
+
+        showContractorDashboard();
+
+    } else {
+
+        showView("view-citizen-dash");
     }
-
-
-    else if (currentRole === "contractor") {
-
-        showView("view-contractor-dash");
-
-    }
-
 }
 
 
-function getRoleName(role) {
-
-    const names = {
-
-        citizen: "Citizen",
-
-        officer: "Municipal Officer",
-
-        contractor: "Contractor"
-
-    };
-
-    return names[role] || role;
-
-}
-
+// ======================================================
+// 9. LOGOUT
+// ======================================================
 
 function logout() {
-
-    currentRole = null;
 
     stopCamera();
 
     showView("view-login");
-
 }
 
 
-/* =====================================================
-   NEW REPORT
-===================================================== */
+// ======================================================
+// 10. CAMERA
+// ======================================================
 
-function startNewReport() {
-
-    currentReport = {
-
-        complaintId: null,
-
-        image: null,
-
-        coords: null,
-
-        notes: "",
-
-        city: "",
-
-        address: "",
-
-        defectType: "Pothole"
-
-    };
-
-
-    resetReportUI();
-
-    showView("view-report-wizard");
-
-}
-
-
-function resetReportUI() {
-
-    const preview =
-        document.getElementById("photo-preview");
-
-    preview.src = "";
-
-    preview.classList.add("hidden");
-
+async function startCamera() {
 
     const video =
         document.getElementById("camera-stream");
 
-    video.classList.add("hidden");
+    const placeholder =
+        document.getElementById("camera-placeholder");
 
+    const openButton =
+        document.getElementById("btn-open-camera");
 
-    document
-        .getElementById("camera-placeholder")
-        .classList.remove("hidden");
+    const captureButton =
+        document.getElementById("btn-capture");
 
-
-    document
-        .getElementById("btn-open-camera")
-        .classList.remove("hidden");
-
-
-    document
-        .getElementById("btn-capture")
-        .classList.add("hidden");
-
-
-    document
-        .getElementById("manual-location-form")
-        .classList.add("hidden");
-
-
-    document
-        .getElementById("mini-map")
-        .classList.add("hidden");
-
-
-    document
-        .getElementById("report-notes")
-        .value = "";
-
-
-    document
-        .getElementById("btn-analyze")
-        .disabled = true;
-
-
-    document
-        .getElementById("location-display")
-        .innerHTML = `
-
-            <div class="location-empty">
-
-                <strong>
-                    Location not captured
-                </strong>
-
-                <span>
-                    Use GPS or enter the location manually.
-                </span>
-
-            </div>
-
-            <button
-                class="btn-secondary"
-                onclick="captureGPS()"
-            >
-                📍 Use My Current Location
-            </button>
-
-        `;
-
-
-    stopCamera();
-
-}
-
-
-/* =====================================================
-   CAMERA
-===================================================== */
-
-async function startCamera() {
 
     if (!navigator.mediaDevices ||
         !navigator.mediaDevices.getUserMedia) {
@@ -471,7 +441,6 @@ async function startCamera() {
         );
 
         return;
-
     }
 
 
@@ -487,76 +456,88 @@ async function startCamera() {
                 },
 
                 audio: false
-
             });
 
 
-        const video =
-            document.getElementById("camera-stream");
-
-
-        video.srcObject = videoStream;
-
+        video.srcObject =
+            videoStream;
 
         video.classList.remove("hidden");
 
+        placeholder.classList.add("hidden");
 
-        document
-            .getElementById("camera-placeholder")
-            .classList.add("hidden");
+        openButton.classList.add("hidden");
 
-
-        document
-            .getElementById("btn-open-camera")
-            .classList.add("hidden");
+        captureButton.classList.remove("hidden");
 
 
-        document
-            .getElementById("btn-capture")
-            .classList.remove("hidden");
+    } catch (error) {
 
-    }
-
-
-    catch (error) {
-
-        alert(
-            "Camera access was denied or unavailable. " +
-            "Please check browser permissions."
+        console.error(
+            "Camera error:",
+            error
         );
 
+        alert(
+            "Camera access was denied or unavailable. Please check browser permissions."
+        );
     }
-
 }
 
+
+// ======================================================
+// 11. STOP CAMERA
+// ======================================================
+
+function stopCamera() {
+
+    if (!videoStream) {
+        return;
+    }
+
+    videoStream
+        .getTracks()
+        .forEach(track => track.stop());
+
+    videoStream = null;
+}
+
+
+// ======================================================
+// 12. CAPTURE PHOTO
+// ======================================================
 
 function capturePhoto() {
 
     const video =
         document.getElementById("camera-stream");
 
+    const preview =
+        document.getElementById("photo-preview");
 
-    if (!video.videoWidth) {
+    if (!video.videoWidth ||
+        !video.videoHeight) {
 
-        alert("Camera is not ready yet.");
+        alert(
+            "Camera is not ready yet."
+        );
 
         return;
-
     }
 
 
     const canvas =
         document.createElement("canvas");
 
+    canvas.width =
+        video.videoWidth;
 
-    canvas.width = video.videoWidth;
-
-    canvas.height = video.videoHeight;
+    canvas.height =
+        video.videoHeight;
 
 
     const context =
         canvas.getContext("2d");
-
 
     context.drawImage(
         video,
@@ -567,448 +548,463 @@ function capturePhoto() {
     );
 
 
+    const dataUrl =
+        canvas.toDataURL(
+            "image/jpeg",
+            0.9
+        );
+
+
     currentReport.image =
-        canvas.toDataURL("image/jpeg", 0.85);
+        dataUrl;
 
-
-    const preview =
-        document.getElementById("photo-preview");
+    currentReport.imageFile =
+        null;
 
 
     preview.src =
-        currentReport.image;
+        dataUrl;
 
+    preview.classList.remove(
+        "hidden"
+    );
 
-    preview.classList.remove("hidden");
-
-    video.classList.add("hidden");
+    video.classList.add(
+        "hidden"
+    );
 
 
     stopCamera();
 
 
-    validateReport();
+    document
+        .getElementById("btn-open-camera")
+        .classList.remove("hidden");
 
+    document
+        .getElementById("btn-capture")
+        .classList.add("hidden");
+
+
+    validateStep();
 }
 
+
+// ======================================================
+// 13. IMAGE UPLOAD
+// ======================================================
 
 function handleUpload(event) {
 
     const file =
         event.target.files[0];
 
-
-    if (!file) return;
+    if (!file) {
+        return;
+    }
 
 
     if (!file.type.startsWith("image/")) {
 
-        alert("Please select an image.");
+        alert(
+            "Please select a valid image."
+        );
 
         return;
-
     }
+
+
+    currentReport.imageFile =
+        file;
 
 
     const reader =
         new FileReader();
 
 
-    reader.onload = function(e) {
+    reader.onload =
+        function (e) {
 
-        currentReport.image =
-            e.target.result;
-
-
-        const preview =
-            document.getElementById("photo-preview");
+            currentReport.image =
+                e.target.result;
 
 
-        preview.src =
-            e.target.result;
+            const preview =
+                document.getElementById(
+                    "photo-preview"
+                );
 
 
-        preview.classList.remove("hidden");
+            preview.src =
+                e.target.result;
+
+            preview.classList.remove(
+                "hidden"
+            );
 
 
-        document
-            .getElementById("camera-placeholder")
-            .classList.add("hidden");
+            const placeholder =
+                document.getElementById(
+                    "camera-placeholder"
+                );
+
+            if (placeholder) {
+                placeholder.classList.add(
+                    "hidden"
+                );
+            }
 
 
-        validateReport();
-
-    };
+            validateStep();
+        };
 
 
     reader.readAsDataURL(file);
-
 }
 
 
-function stopCamera() {
-
-    if (!videoStream) return;
-
-
-    videoStream
-        .getTracks()
-        .forEach(track => track.stop());
-
-
-    videoStream = null;
-
-}
-
-
-/* =====================================================
-   GPS
-===================================================== */
+// ======================================================
+// 14. GPS LOCATION
+// ======================================================
 
 function captureGPS() {
 
     const display =
-        document.getElementById("location-display");
+        document.getElementById(
+            "location-display"
+        );
+
+
+    if (!display) {
+        return;
+    }
 
 
     display.innerHTML = `
-
-        <div class="location-empty">
-
-            <strong>
-                🛰️ Acquiring location...
-            </strong>
-
-            <span>
-                Please allow location access.
-            </span>
-
+        <div class="loc-text">
+            🛰️ Acquiring location...
         </div>
-
     `;
 
 
     if (!navigator.geolocation) {
 
-        showGPSMessage(
-            "Your browser does not support GPS location.",
-            true
-        );
+        display.innerHTML = `
+            <div class="loc-text text-danger">
+                GPS is not supported by this browser.
+            </div>
+
+            <button
+                class="btn-secondary"
+                onclick="captureGPS()">
+                Try Again
+            </button>
+        `;
 
         return;
-
     }
 
 
     navigator.geolocation.getCurrentPosition(
 
-        async function(position) {
+        handleGPSsuccess,
 
-            const {
-
-                latitude,
-                longitude,
-                accuracy
-
-            } = position.coords;
-
-
-            currentReport.coords = {
-
-                latitude,
-
-                longitude,
-
-                accuracy,
-
-                timestamp:
-                    new Date().toISOString()
-
-            };
-
-
-            await reverseGeocode(
-                latitude,
-                longitude
-            );
-
-
-            renderLocation();
-
-
-            showMiniMap(
-                latitude,
-                longitude
-            );
-
-
-            validateReport();
-
-        },
-
-
-        function(error) {
-
-            let message;
-
-
-            switch (error.code) {
-
-                case error.PERMISSION_DENIED:
-
-                    message =
-                        "Location permission was denied. GPS is required for accurate GIS mapping.";
-
-                    break;
-
-
-                case error.POSITION_UNAVAILABLE:
-
-                    message =
-                        "Unable to determine your current location.";
-
-                    break;
-
-
-                case error.TIMEOUT:
-
-                    message =
-                        "Location request timed out.";
-
-                    break;
-
-
-                default:
-
-                    message =
-                        "Unable to determine your location.";
-
-            }
-
-
-            showGPSMessage(message, true);
-
-        },
-
+        handleGPSerror,
 
         {
-
             enableHighAccuracy: true,
 
             timeout: 15000,
 
             maximumAge: 0
-
         }
-
     );
-
 }
 
 
-function showGPSMessage(message, isError = false) {
-
-    const status =
-        document.getElementById("gps-status");
-
-
-    status.classList.remove("hidden");
-
-
-    status.style.background =
-        isError ? "#ffebe6" : "#e3fcef";
-
-
-    status.style.color =
-        isError ? "#de350b" : "#00875a";
-
-
-    status.innerText =
-        message;
-
-
-    document
-        .getElementById("location-display")
-        .innerHTML = `
-
-            <div class="location-empty">
-
-                <strong>
-                    Location unavailable
-                </strong>
-
-                <span>
-                    ${message}
-                </span>
-
-            </div>
-
-            <button
-                class="btn-secondary"
-                onclick="captureGPS()"
-            >
-                Try Again
-            </button>
-
-        `;
-
-}
-
-
-/* =====================================================
-   REVERSE GEOCODING
-===================================================== */
-
-async function reverseGeocode(latitude, longitude) {
-
-    try {
-
-        const url =
-            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`;
-
-
-        const response =
-            await fetch(url, {
-
-                headers: {
-                    "Accept": "application/json"
-                }
-
-            });
-
-
-        if (!response.ok) {
-
-            throw new Error(
-                "Reverse geocoding failed"
-            );
-
-        }
-
-
-        const data =
-            await response.json();
-
-
-        currentReport.city =
-            data.address?.city ||
-            data.address?.town ||
-            data.address?.municipality ||
-            data.address?.village ||
-            "Unknown";
-
-
-        currentReport.address =
-            data.display_name ||
-            "Address unavailable";
-
-    }
-
-
-    catch (error) {
-
-        currentReport.city =
-            "Location detected";
-
-
-        currentReport.address =
-            "Address lookup unavailable";
-
-    }
-
-}
-
-
-/* =====================================================
-   RENDER LOCATION
-===================================================== */
-
-function renderLocation() {
-
-    if (!currentReport.coords) return;
-
-
-    const {
-
-        latitude,
-        longitude,
-        accuracy
-
-    } = currentReport.coords;
-
-
-    document
-        .getElementById("location-display")
-        .innerHTML = `
-
-            <div class="location-empty">
-
-                <strong>
-                    ✓ GPS Location Captured
-                </strong>
-
-                <span>
-                    📍 ${escapeHTML(currentReport.city)}
-                </span>
-
-                <span>
-                    Latitude:
-                    ${latitude.toFixed(6)}
-                </span>
-
-                <span>
-                    Longitude:
-                    ${longitude.toFixed(6)}
-                </span>
-
-                <span>
-                    Accuracy:
-                    ±${Math.round(accuracy)} m
-                </span>
-
-            </div>
-
-
-            <button
-                class="btn-secondary"
-                onclick="captureGPS()"
-            >
-                Refresh Location
-            </button>
-
-        `;
-
-}
-
-
-/* =====================================================
-   MANUAL LOCATION
-===================================================== */
-
-function toggleManualLocation() {
-
-    document
-        .getElementById("manual-location-form")
-        .classList.toggle("hidden");
-
-}
-
-
-async function useManualLocation() {
+// ======================================================
+// 15. GPS SUCCESS
+// ======================================================
+
+function handleGPSsuccess(position) {
 
     const latitude =
-        parseFloat(
-            document.getElementById(
-                "manual-latitude"
-            ).value
+        position.coords.latitude;
+
+    const longitude =
+        position.coords.longitude;
+
+    const accuracy =
+        position.coords.accuracy;
+
+
+    currentReport.coords = {
+
+        latitude: latitude,
+
+        longitude: longitude,
+
+        accuracy: accuracy,
+
+        timestamp:
+            new Date().toISOString()
+    };
+
+
+    currentReport.timestamp =
+        new Date().toISOString();
+
+
+    const display =
+        document.getElementById(
+            "location-display"
         );
 
 
+    display.innerHTML = `
+
+        <div class="loc-text">
+
+            <strong>
+                ✓ GPS Location Captured
+            </strong>
+
+            <br>
+
+            Latitude:
+            ${latitude.toFixed(6)}
+
+            <br>
+
+            Longitude:
+            ${longitude.toFixed(6)}
+
+            <br>
+
+            Accuracy:
+            ±${Math.round(accuracy)} meters
+
+        </div>
+
+        <button
+            class="btn-secondary"
+            onclick="captureGPS()">
+
+            Refresh Location
+
+        </button>
+    `;
+
+
+    showMiniMap(
+        latitude,
+        longitude
+    );
+
+
+    validateStep();
+}
+
+
+// ======================================================
+// 16. GPS ERROR HANDLING
+// ======================================================
+
+function handleGPSerror(error) {
+
+    const display =
+        document.getElementById(
+            "location-display"
+        );
+
+
+    let message =
+        "Unable to determine your location.";
+
+
+    if (error.code === 1) {
+
+        message =
+            "Location permission was denied. GPS is required for accurate GIS mapping.";
+
+    } else if (error.code === 2) {
+
+        message =
+            "Unable to determine your current location.";
+
+    } else if (error.code === 3) {
+
+        message =
+            "Location request timed out.";
+    }
+
+
+    display.innerHTML = `
+
+        <div class="loc-text text-danger">
+
+            ❌ ${message}
+
+        </div>
+
+        <button
+            class="btn-secondary"
+            onclick="captureGPS()">
+
+            Try Again
+
+        </button>
+    `;
+}
+
+
+// ======================================================
+// 17. MINI GIS MAP
+// ======================================================
+
+function showMiniMap(
+    latitude,
+    longitude
+) {
+
+    const mapElement =
+        document.getElementById(
+            "mini-map"
+        );
+
+
+    if (!mapElement) {
+        return;
+    }
+
+
+    mapElement.classList.remove(
+        "hidden"
+    );
+
+
+    if (mapInstance) {
+
+        mapInstance.remove();
+
+        mapInstance = null;
+    }
+
+
+    mapInstance =
+        L.map("mini-map")
+            .setView(
+                [latitude, longitude],
+                16
+            );
+
+
+    L.tileLayer(
+        "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        {
+            attribution:
+                "&copy; OpenStreetMap contributors"
+        }
+    ).addTo(mapInstance);
+
+
+    currentLocationMarker =
+        L.marker([
+            latitude,
+            longitude
+        ])
+        .addTo(mapInstance)
+        .bindPopup(`
+            <strong>
+                Current Report Location
+            </strong>
+            <br>
+            Latitude:
+            ${latitude.toFixed(6)}
+            <br>
+            Longitude:
+            ${longitude.toFixed(6)}
+        `)
+        .openPopup();
+
+
+    // Nearby drainage
+
+    mockData.drainage.forEach(
+        drain => {
+
+            L.circleMarker(
+                [drain.lat, drain.lng],
+                {
+                    radius: 7,
+                    color: "#0047bb"
+                }
+            )
+            .addTo(mapInstance)
+            .bindPopup(
+                `Drainage: ${drain.type}`
+            );
+        }
+    );
+
+
+    // Waterlogging
+
+    mockData.waterlogging.forEach(
+        hotspot => {
+
+            L.circleMarker(
+                [hotspot.lat, hotspot.lng],
+                {
+                    radius: 8,
+                    color: "#de350b"
+                }
+            )
+            .addTo(mapInstance)
+            .bindPopup(
+                "Waterlogging Hotspot"
+            );
+        }
+    );
+}
+
+
+// ======================================================
+// 18. MANUAL LOCATION
+// ======================================================
+
+function useManualLocation() {
+
+    const latitudeInput =
+        document.getElementById(
+            "manual-latitude"
+        );
+
+    const longitudeInput =
+        document.getElementById(
+            "manual-longitude"
+        );
+
+
+    if (!latitudeInput ||
+        !longitudeInput) {
+
+        alert(
+            "Manual location fields are not available."
+        );
+
+        return;
+    }
+
+
+    const latitude =
+        parseFloat(
+            latitudeInput.value
+        );
+
     const longitude =
         parseFloat(
-            document.getElementById(
-                "manual-longitude"
-            ).value
+            longitudeInput.value
         );
 
 
@@ -1022,43 +1018,29 @@ async function useManualLocation() {
         );
 
         return;
-
     }
 
 
     if (
         latitude < -90 ||
-        latitude > 90
-    ) {
-
-        alert(
-            "Latitude must be between -90 and 90."
-        );
-
-        return;
-
-    }
-
-
-    if (
+        latitude > 90 ||
         longitude < -180 ||
         longitude > 180
     ) {
 
         alert(
-            "Longitude must be between -180 and 180."
+            "Latitude or longitude is outside the valid range."
         );
 
         return;
-
     }
 
 
     currentReport.coords = {
 
-        latitude,
+        latitude: latitude,
 
-        longitude,
+        longitude: longitude,
 
         accuracy: null,
 
@@ -1066,17 +1048,52 @@ async function useManualLocation() {
             new Date().toISOString(),
 
         source: "manual"
-
     };
 
 
-    await reverseGeocode(
-        latitude,
-        longitude
-    );
+    currentReport.timestamp =
+        new Date().toISOString();
 
 
-    renderLocation();
+    const display =
+        document.getElementById(
+            "location-display"
+        );
+
+
+    display.innerHTML = `
+
+        <div class="loc-text">
+
+            <strong>
+                ✓ Manual Location Added
+            </strong>
+
+            <br>
+
+            Latitude:
+            ${latitude.toFixed(6)}
+
+            <br>
+
+            Longitude:
+            ${longitude.toFixed(6)}
+
+            <br>
+
+            Source:
+            Manual Entry
+
+        </div>
+
+        <button
+            class="btn-secondary"
+            onclick="captureGPS()">
+
+            Use GPS Instead
+
+        </button>
+    `;
 
 
     showMiniMap(
@@ -1085,97 +1102,101 @@ async function useManualLocation() {
     );
 
 
-    validateReport();
-
+    validateStep();
 }
 
 
-/* =====================================================
-   MINI MAP
-===================================================== */
+// ======================================================
+// 19. VALIDATE REPORT
+// ======================================================
 
-function showMiniMap(latitude, longitude) {
+function validateStep() {
 
-    const element =
-        document.getElementById("mini-map");
-
-
-    element.classList.remove("hidden");
-
-
-    if (citizenMap) {
-
-        citizenMap.remove();
-
-        citizenMap = null;
-
-    }
-
-
-    citizenMap =
-        L.map("mini-map")
-        .setView(
-            [latitude, longitude],
-            16
-        );
-
-
-    L.tileLayer(
-        "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-        {
-
-            attribution:
-                "&copy; OpenStreetMap contributors"
-
-        }
-    ).addTo(citizenMap);
-
-
-    L.marker(
-        [latitude, longitude]
-    )
-    .addTo(citizenMap)
-    .bindPopup(
-        `<strong>Defect Location</strong><br>
-         ${escapeHTML(currentReport.city)}`
-    )
-    .openPopup();
-
-}
-
-
-/* =====================================================
-   VALIDATE REPORT
-===================================================== */
-
-function validateReport() {
-
-    const submitButton =
+    const button =
         document.getElementById(
             "btn-analyze"
         );
 
 
-    submitButton.disabled =
-        !(currentReport.image &&
-          currentReport.coords);
+    if (!button) {
+        return;
+    }
 
+
+    button.disabled =
+        !currentReport.image ||
+        !currentReport.coords;
 }
 
 
-/* =====================================================
-   AI ANALYSIS SIMULATION
-===================================================== */
+// ======================================================
+// 20. READ REPORT DETAILS
+// ======================================================
 
-function runAnalysisSequence() {
+function collectReportDetails() {
 
-    currentReport.notes =
+    const notes =
         document.getElementById(
             "report-notes"
-        ).value;
+        );
 
 
-    showView("view-processing");
+    currentReport.notes =
+        notes
+            ? notes.value.trim()
+            : "";
+}
+
+
+// ======================================================
+// 21. GENERATE COMPLAINT ID
+// ======================================================
+
+function generateComplaintId() {
+
+    return (
+        "CR-" +
+        Date.now()
+            .toString()
+            .slice(-6)
+    );
+}
+
+
+// ======================================================
+// 22. AI PROCESSING SIMULATION
+// ======================================================
+
+async function runAnalysisSequence() {
+    const saved = await saveComplaintToSupabase();
+
+    if (!saved) {
+        return;
+    }
+
+    collectReportDetails();
+
+
+    if (
+        !currentReport.image ||
+        !currentReport.coords
+    ) {
+
+        alert(
+            "Please provide an image and location."
+        );
+
+        return;
+    }
+
+
+    currentReport.complaintId =
+        generateComplaintId();
+
+
+    showView(
+        "view-processing"
+    );
 
 
     const steps =
@@ -1186,8 +1207,9 @@ function runAnalysisSequence() {
 
     steps.forEach(step => {
 
-        step.classList.remove("done");
-
+        step.classList.remove(
+            "done"
+        );
     });
 
 
@@ -1195,10 +1217,11 @@ function runAnalysisSequence() {
         (step, index) => {
 
             setTimeout(
-
                 () => {
 
-                    step.classList.add("done");
+                    step.classList.add(
+                        "done"
+                    );
 
 
                     if (
@@ -1210,136 +1233,132 @@ function runAnalysisSequence() {
                             finalizeAnalysis,
                             700
                         );
-
                     }
 
                 },
 
-                (index + 1) * 650
-
+                (index + 1) * 700
             );
-
         }
-
     );
-
 }
 
 
-/* =====================================================
-   FINALIZE ANALYSIS
-===================================================== */
+// ======================================================
+// 23. FINALIZE AI ANALYSIS
+// ======================================================
 
 function finalizeAnalysis() {
 
-    currentReport.complaintId =
-        "CR-" +
-        Math.floor(
-            1000 +
-            Math.random() * 9000
-        );
+    currentReport.defectType =
+        "Pothole";
+
+    currentReport.severity =
+        "High";
+
+    currentReport.priority =
+        87;
+
+    currentReport.waterRisk =
+        "High";
+
+    currentReport.drainageNearby =
+        true;
 
 
-    const image =
+    const resultImage =
         document.getElementById(
             "result-img"
         );
 
 
-    image.src =
-        currentReport.image;
+    if (resultImage) {
+
+        resultImage.src =
+            currentReport.image;
+    }
 
 
-    renderResultLocation();
+    updateResultLocation();
 
 
-    showView("view-results");
-
+    showView(
+        "view-results"
+    );
 }
 
 
-/* =====================================================
-   RESULT LOCATION
-===================================================== */
+// ======================================================
+// 24. UPDATE RESULT LOCATION
+// ======================================================
 
-function renderResultLocation() {
+function updateResultLocation() {
 
-    const container =
+    const coords =
+        currentReport.coords;
+
+
+    if (!coords) {
+        return;
+    }
+
+
+    const resultLocation =
         document.getElementById(
             "result-location"
         );
 
 
-    const {
-        latitude,
-        longitude,
-        accuracy
-    } = currentReport.coords;
+    if (!resultLocation) {
+        return;
+    }
 
 
-    container.innerHTML = `
+    resultLocation.innerHTML = `
 
         <strong>
-            ${escapeHTML(currentReport.city)}
+            📍 Report Location
         </strong>
 
         <br>
 
-        Address:
-        ${escapeHTML(currentReport.address)}
-
-        <br>
-
         Latitude:
-        ${latitude.toFixed(6)}
+        ${coords.latitude.toFixed(6)}
 
         <br>
 
         Longitude:
-        ${longitude.toFixed(6)}
+        ${coords.longitude.toFixed(6)}
 
         <br>
 
         Accuracy:
         ${
-            accuracy
-            ? "±" + Math.round(accuracy) + " m"
-            : "Manual location"
+            coords.accuracy
+                ? "±" +
+                  Math.round(
+                      coords.accuracy
+                  ) +
+                  " m"
+                : "Manual location"
         }
 
     `;
-
 }
 
 
-/* =====================================================
-   FUTURE RISK
-===================================================== */
+// ======================================================
+// 25. FUTURE RISK
+// ======================================================
 
 function updateFutureRisk(
-    scenario,
-    clickedButton
+    scenario
 ) {
-
-    document
-        .querySelectorAll(
-            ".risk-scenario button"
-        )
-        .forEach(button => {
-
-            button.classList.remove("active");
-
-        });
-
-
-    clickedButton.classList.add("active");
-
 
     const bar =
         document.getElementById(
             "risk-bar"
         );
-
 
     const label =
         document.getElementById(
@@ -1347,94 +1366,72 @@ function updateFutureRisk(
         );
 
 
+    if (!bar || !label) {
+        return;
+    }
+
+
+    const buttons =
+        document.querySelectorAll(
+            ".risk-scenario button"
+        );
+
+
+    buttons.forEach(
+        button => {
+            button.classList.remove(
+                "active"
+            );
+        }
+    );
+
+
+    if (
+        typeof event !==
+        "undefined" &&
+        event.target
+    ) {
+
+        event.target.classList.add(
+            "active"
+        );
+    }
+
+
     if (scenario === "normal") {
 
-        bar.style.width = "45%";
+        bar.style.width =
+            "45%";
 
         label.innerText =
             "Scenario Risk: MODERATE";
 
-    }
 
+    } else if (
+        scenario === "heavy"
+    ) {
 
-    else if (scenario === "heavy") {
-
-        bar.style.width = "85%";
+        bar.style.width =
+            "85%";
 
         label.innerText =
             "Scenario Risk: VERY HIGH";
 
-    }
 
+    } else {
 
-    else {
-
-        bar.style.width = "95%";
+        bar.style.width =
+            "95%";
 
         label.innerText =
             "Scenario Risk: EXTREME";
-
     }
-
 }
 
 
-/* =====================================================
-   FINISH CITIZEN REPORT
-===================================================== */
-
-function finishReport() {
-
-    if (!currentReport.coords) return;
-
-
-    mockData.complaints.unshift({
-
-        id: currentReport.complaintId,
-
-        type: "Pothole",
-
-        severity: "High",
-
-        priority: 87,
-
-        status: "Reported",
-
-        city: currentReport.city,
-
-        area: "New Citizen Report",
-
-        latitude:
-            currentReport.coords.latitude,
-
-        longitude:
-            currentReport.coords.longitude,
-
-        accuracy:
-            currentReport.coords.accuracy,
-
-        waterRisk: "High",
-
-        drainageDistance: 42,
-
-        workOrderId: null
-
-    });
-
-
-    renderCitizenHistory();
-
-
-    showView(
-        "view-citizen-dash"
-    );
-
-}
-
-
-/* =====================================================
-   CITIZEN HISTORY
-===================================================== */
+// ======================================================
+// 26. CITIZEN HISTORY
+// ======================================================
 
 function renderCitizenHistory() {
 
@@ -1444,83 +1441,65 @@ function renderCitizenHistory() {
         );
 
 
-    if (!container) return;
+    if (!container) {
+        return;
+    }
 
 
     container.innerHTML =
         mockData.complaints
-        .slice(0, 5)
-        .map(item => `
+            .map(item => `
 
-            <div class="work-order-card">
+                <div class="stat-card">
 
-                <div class="work-order-header">
+                    <strong>
+                        ${item.id}
+                    </strong>
 
-                    <div>
+                    <p>
+                        ${item.type}
+                    </p>
 
-                        <strong>
-                            ${item.id}
-                        </strong>
+                    <p>
+                        Severity:
+                        ${item.severity}
+                    </p>
 
-                        <h3>
-                            ${escapeHTML(item.type)}
-                        </h3>
+                    <p>
+                        Priority:
+                        ${item.priority}/100
+                    </p>
 
-                    </div>
-
-                    <span class="badge badge-danger">
-                        ${escapeHTML(item.status)}
-                    </span>
+                    <p>
+                        Status:
+                        ${item.status}
+                    </p>
 
                 </div>
 
-
-                <p>
-                    📍 ${escapeHTML(item.city)}
-                </p>
-
-                <p>
-                    Coordinates:
-                    ${item.latitude.toFixed(5)},
-                    ${item.longitude.toFixed(5)}
-                </p>
-
-                <p>
-                    Priority:
-                    <strong>
-                        ${item.priority}/100
-                    </strong>
-                </p>
-
-            </div>
-
-        `)
-        .join("");
-
+            `)
+            .join("");
 }
 
 
-/* =====================================================
-   OFFICER DASHBOARD
-===================================================== */
+// ======================================================
+// 27. OFFICER DASHBOARD
+// ======================================================
 
 function initOfficerDashboard() {
 
     renderOfficerTable();
 
-    initOfficerMap();
-
-    document.getElementById(
-        "officer-total"
-    ).innerText =
-        mockData.complaints.length;
-
+    setTimeout(
+        initOfficerMap,
+        100
+    );
 }
 
 
-/* =====================================================
-   OFFICER TABLE
-===================================================== */
+// ======================================================
+// 28. OFFICER TABLE
+// ======================================================
 
 function renderOfficerTable() {
 
@@ -1530,90 +1509,73 @@ function renderOfficerTable() {
         );
 
 
+    if (!tbody) {
+        return;
+    }
+
+
     tbody.innerHTML =
         mockData.complaints
-        .map(item => `
+            .map(item => `
 
-            <tr>
+                <tr>
 
-                <td>
-                    <strong>
+                    <td>
                         ${item.id}
-                    </strong>
-                </td>
+                    </td>
 
-                <td>
-                    ${escapeHTML(item.type)}
-                </td>
+                    <td>
+                        ${item.type}
+                    </td>
 
-                <td>
+                    <td>
+                        ${item.severity}
+                    </td>
 
-                    <strong>
-                        ${escapeHTML(item.city)}
-                    </strong>
-
-                    <br>
-
-                    <small>
-                        ${escapeHTML(item.area)}
-                    </small>
-
-                </td>
-
-                <td>
-
-                    ${item.latitude.toFixed(6)}
-
-                    <br>
-
-                    ${item.longitude.toFixed(6)}
-
-                    <br>
-
-                    <small>
-                        ±${item.accuracy || "N/A"}m
-                    </small>
-
-                </td>
-
-                <td>
-
-                    <span class="badge badge-danger">
+                    <td>
                         ${item.priority}/100
-                    </span>
+                    </td>
 
-                </td>
+                    <td>
+                        ${item.waterRisk}
+                    </td>
 
-                <td>
-                    ${escapeHTML(item.waterRisk)}
-                </td>
+                    <td>
+                        ${item.city}
+                    </td>
 
-                <td>
-                    ${escapeHTML(item.status)}
-                </td>
+                    <td>
+                        ${item.lat.toFixed(6)}
+                        <br>
+                        ${item.lng.toFixed(6)}
+                    </td>
 
-                <td>
+                    <td>
+                        ${item.status}
+                    </td>
 
-                    <button
-                        class="btn-primary"
-                        onclick="reviewComplaint('${item.id}')"
-                    >
-                        Review
-                    </button>
+                    <td>
 
-                </td>
+                        <button
+                            class="btn-primary"
+                            onclick="reviewComplaint('${item.id}')">
 
-            </tr>
+                            Review
 
-        `)
-        .join("");
+                        </button>
 
+                    </td>
+
+                </tr>
+
+            `)
+            .join("");
 }
 
 
-/* =====================================================
-   OFFICER MAP
-===================================================== */
+// ======================================================
+// 29. OFFICER GIS MAP
+// ======================================================
 
 function initOfficerMap() {
 
@@ -1623,71 +1585,63 @@ function initOfficerMap() {
         );
 
 
-    if (!mapElement) return;
-
-
-    if (officerMap) {
-
-        officerMap.remove();
-
-        officerMap = null;
-
+    if (!mapElement) {
+        return;
     }
 
 
-    const first =
+    if (officerMapInstance) {
+
+        officerMapInstance.remove();
+
+        officerMapInstance = null;
+    }
+
+
+    const firstComplaint =
         mockData.complaints[0];
 
 
-    officerMap =
+    officerMapInstance =
         L.map("officer-map")
-        .setView(
-            [
-                first.latitude,
-                first.longitude
-            ],
-            14
-        );
+            .setView(
+                [
+                    firstComplaint.lat,
+                    firstComplaint.lng
+                ],
+                14
+            );
 
 
     L.tileLayer(
         "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
         {
-
             attribution:
                 "&copy; OpenStreetMap contributors"
-
         }
-    ).addTo(officerMap);
+    ).addTo(
+        officerMapInstance
+    );
 
+
+    // Defects
 
     mockData.complaints.forEach(
         complaint => {
 
             L.circleMarker(
-
                 [
-                    complaint.latitude,
-                    complaint.longitude
+                    complaint.lat,
+                    complaint.lng
                 ],
-
                 {
-
-                    radius: 9,
-
-                    color:
-                        complaint.priority >= 70
-                        ? "#de350b"
-                        : "#0047bb",
-
-                    fillOpacity: 0.8
-
+                    color: "#de350b",
+                    radius: 9
                 }
-
             )
-
-            .addTo(officerMap)
-
+            .addTo(
+                officerMapInstance
+            )
             .bindPopup(`
 
                 <strong>
@@ -1696,809 +1650,411 @@ function initOfficerMap() {
 
                 <br>
 
-                ${escapeHTML(
-                    complaint.type
-                )}
+                Type:
+                ${complaint.type}
 
                 <br>
 
-                📍 ${escapeHTML(
-                    complaint.city
-                )}
-
-                <br>
-
-                Lat:
-                ${complaint.latitude.toFixed(6)}
-
-                <br>
-
-                Lng:
-                ${complaint.longitude.toFixed(6)}
+                Severity:
+                ${complaint.severity}
 
                 <br>
 
                 Priority:
                 ${complaint.priority}/100
 
+                <br>
+
+                Water Risk:
+                ${complaint.waterRisk}
+
+                <br>
+
+                City:
+                ${complaint.city}
+
+                <br>
+
+                Coordinates:
+                ${complaint.lat.toFixed(6)},
+                ${complaint.lng.toFixed(6)}
+
             `);
-
         }
-
     );
 
+
+    // Drainage
 
     mockData.drainage.forEach(
         drain => {
 
             L.circleMarker(
-
                 [
-                    drain.latitude,
-                    drain.longitude
+                    drain.lat,
+                    drain.lng
                 ],
-
                 {
-
-                    radius: 7,
-
-                    color: "#00875a",
-
-                    fillColor: "#00875a",
-
-                    fillOpacity: 0.8
-
+                    color: "#0047bb",
+                    radius: 7
                 }
-
             )
-
-            .addTo(officerMap)
-
-            .bindPopup(
-                "🚰 Drainage Point"
-            );
-
+            .addTo(
+                officerMapInstance
+            )
+            .bindPopup(`
+                <strong>
+                    Drainage Point
+                </strong>
+                <br>
+                ${drain.type}
+                <br>
+                Risk:
+                ${drain.risk}
+            `);
         }
-
     );
 
+
+    // Waterlogging
 
     mockData.waterlogging.forEach(
         hotspot => {
 
             L.circleMarker(
-
                 [
-                    hotspot.latitude,
-                    hotspot.longitude
+                    hotspot.lat,
+                    hotspot.lng
                 ],
-
                 {
-
-                    radius: 10,
-
-                    color: "#0047bb",
-
-                    fillColor: "#0047bb",
-
-                    fillOpacity: 0.3
-
+                    color: "#ffab00",
+                    radius: 8
                 }
-
             )
-
-            .addTo(officerMap)
-
-            .bindPopup(
-                "💧 Waterlogging Hotspot"
-            );
-
+            .addTo(
+                officerMapInstance
+            )
+            .bindPopup(`
+                <strong>
+                    Waterlogging Hotspot
+                </strong>
+                <br>
+                Risk:
+                ${hotspot.risk}
+            `);
         }
+    );
+}
 
+
+// ======================================================
+// 30. REVIEW COMPLAINT
+// ======================================================
+
+function reviewComplaint(
+    complaintId
+) {
+
+    const complaint =
+        mockData.complaints.find(
+            item =>
+                item.id === complaintId
+        );
+
+
+    if (!complaint) {
+        return;
+    }
+
+
+    alert(`
+
+Complaint: ${complaint.id}
+
+Type: ${complaint.type}
+
+Severity: ${complaint.severity}
+
+Priority: ${complaint.priority}/100
+
+Water Risk: ${complaint.waterRisk}
+
+City: ${complaint.city}
+
+Coordinates:
+${complaint.lat},
+${complaint.lng}
+
+Status:
+${complaint.status}
+
+    `);
+}
+
+
+// ======================================================
+// 31. CONTRACTOR DASHBOARD
+// ======================================================
+
+function showContractorDashboard() {
+
+    const contractorView =
+        document.getElementById(
+            "view-contractor-dash"
+        );
+
+
+    if (contractorView) {
+
+        showView(
+            "view-contractor-dash"
+        );
+
+        return;
+    }
+
+
+    alert(
+        "Contractor dashboard UI needs to be added to index.html."
+    );
+}
+
+
+// ======================================================
+// 32. CREATE WORK ORDER
+// ======================================================
+
+function createWorkOrder(
+    complaintId
+) {
+
+    const complaint =
+        mockData.complaints.find(
+            item =>
+                item.id === complaintId
+        );
+
+
+    if (!complaint) {
+        return;
+    }
+
+
+    complaint.status =
+        "Work Order Created";
+
+
+    alert(
+        `Work order created for ${complaint.id}`
     );
 
+
+    renderOfficerTable();
 }
 
 
-/* =====================================================
-   OFFICER REVIEW
-===================================================== */
+// ======================================================
+// 33. ASSIGN CONTRACTOR
+// ======================================================
 
-function reviewComplaint(id) {
-
-    const complaint =
-        mockData.complaints.find(
-            item => item.id === id
-        );
-
-
-    if (!complaint) return;
-
-
-    const panel =
-        document.getElementById(
-            "officer-detail-panel"
-        );
-
-
-    panel.classList.remove("hidden");
-
-
-    panel.innerHTML = `
-
-        <h3>
-            Defect Review — ${complaint.id}
-        </h3>
-
-        <br>
-
-        <p>
-            <strong>Type:</strong>
-            ${escapeHTML(complaint.type)}
-        </p>
-
-        <p>
-            <strong>City:</strong>
-            ${escapeHTML(complaint.city)}
-        </p>
-
-        <p>
-            <strong>Area:</strong>
-            ${escapeHTML(complaint.area)}
-        </p>
-
-        <p>
-            <strong>Latitude:</strong>
-            ${complaint.latitude.toFixed(6)}
-        </p>
-
-        <p>
-            <strong>Longitude:</strong>
-            ${complaint.longitude.toFixed(6)}
-        </p>
-
-        <p>
-            <strong>Priority:</strong>
-            ${complaint.priority}/100
-        </p>
-
-        <p>
-            <strong>Water Risk:</strong>
-            ${escapeHTML(complaint.waterRisk)}
-        </p>
-
-        <hr>
-
-        <br>
-
-        ${
-            complaint.workOrderId
-
-            ? `<button
-                    class="btn-secondary"
-                    onclick="openWorkOrder('${complaint.workOrderId}')"
-               >
-                    View Work Order
-               </button>`
-
-            : `<button
-                    class="btn-primary"
-                    onclick="createWorkOrder('${complaint.id}')"
-               >
-                    Create Work Order
-               </button>`
-        }
-
-    `;
-
-}
-
-
-/* =====================================================
-   CREATE WORK ORDER
-===================================================== */
-
-function createWorkOrder(complaintId) {
+function assignContractor(
+    complaintId,
+    contractorId
+) {
 
     const complaint =
         mockData.complaints.find(
-            item => item.id === complaintId
+            item =>
+                item.id === complaintId
         );
 
 
-    if (!complaint) return;
-
-
-    const workOrderId =
-        "WO-" +
-        Math.floor(
-            100 +
-            Math.random() * 900
+    const contractor =
+        mockData.contractors.find(
+            item =>
+                item.id === contractorId
         );
 
 
-    mockData.workOrders.push({
+    if (!complaint ||
+        !contractor) {
 
-        id: workOrderId,
-
-        complaintId,
-
-        type:
-            complaint.type +
-            " Repair",
-
-        priority:
-            complaint.priority,
-
-        location:
-            `${complaint.area}, ${complaint.city}`,
-
-        latitude:
-            complaint.latitude,
-
-        longitude:
-            complaint.longitude,
-
-        status: "Assigned",
-
-        contractor: "ABC Road Works",
-
-        assignedDate:
-            new Date().toISOString()
-                .split("T")[0],
-
-        description:
-            "Repair road defect and restore safe road surface.",
-
-        beforeImage: null,
-
-        afterImage: null,
-
-        verification: "Pending"
-
-    });
-
-
-    complaint.workOrderId =
-        workOrderId;
+        return;
+    }
 
 
     complaint.status =
         "Contractor Assigned";
 
 
+    alert(
+        `${contractor.name} assigned to ${complaint.id}`
+    );
+
+
     renderOfficerTable();
+}
 
 
-    reviewComplaint(complaintId);
+// ======================================================
+// 34. MARK WORK COMPLETED
+// ======================================================
+
+function markWorkCompleted(
+    complaintId
+) {
+
+    const complaint =
+        mockData.complaints.find(
+            item =>
+                item.id === complaintId
+        );
+
+
+    if (!complaint) {
+        return;
+    }
+
+
+    complaint.status =
+        "Repair Completed";
+
+    alert(
+        `${complaint.id} marked as repair completed.`
+    );
+}
+
+
+// ======================================================
+// 35. VERIFY REPAIR
+// ======================================================
+
+function verifyRepair(
+    complaintId
+) {
+
+    const complaint =
+        mockData.complaints.find(
+            item =>
+                item.id === complaintId
+        );
+
+
+    if (!complaint) {
+        return;
+    }
+
+
+    complaint.status =
+        "Closed";
 
 
     alert(
-        `Work Order ${workOrderId} created and assigned to contractor.`
+        `${complaint.id} has been verified and closed.`
     );
 
+
+    renderOfficerTable();
 }
 
 
-/* =====================================================
-   CONTRACTOR DASHBOARD
-===================================================== */
+// ======================================================
+// 36. SUBMIT COMPLAINT TO SUPABASE
+// ======================================================
 
-function renderContractorDashboard() {
+async function submitComplaintToSupabase() {
 
-    const container =
-        document.getElementById(
-            "contractor-work-orders"
-        );
+    if (!currentReport.coords) {
 
-
-    const orders =
-        mockData.workOrders;
-
-
-    document.getElementById(
-        "contractor-assigned-count"
-    ).innerText =
-        orders.filter(
-            order =>
-                order.status !== "Completed"
-        ).length;
-
-
-    container.innerHTML =
-        orders.map(order => `
-
-            <div class="work-order-card">
-
-                <div class="work-order-header">
-
-                    <div>
-
-                        <span class="eyebrow">
-                            WORK ORDER
-                        </span>
-
-                        <h3>
-                            ${order.id}
-                        </h3>
-
-                        <p>
-                            ${escapeHTML(order.type)}
-                        </p>
-
-                    </div>
-
-
-                    <span class="badge badge-danger">
-                        ${escapeHTML(order.status)}
-                    </span>
-
-                </div>
-
-
-                <br>
-
-
-                <p>
-                    📍 ${escapeHTML(order.location)}
-                </p>
-
-                <p>
-                    Coordinates:
-                    ${order.latitude.toFixed(6)},
-                    ${order.longitude.toFixed(6)}
-                </p>
-
-                <p>
-                    Priority:
-                    <strong>
-                        ${order.priority}/100
-                    </strong>
-                </p>
-
-
-                <div class="work-order-actions">
-
-                    <button
-                        class="btn-primary"
-                        onclick="openWorkOrder('${order.id}')"
-                    >
-                        Open Work Order
-                    </button>
-
-                </div>
-
-            </div>
-
-        `)
-        .join("");
-
-}
-
-
-/* =====================================================
-   OPEN WORK ORDER
-===================================================== */
-
-function openWorkOrder(workOrderId) {
-
-    const order =
-        mockData.workOrders.find(
-            item => item.id === workOrderId
-        );
-
-
-    if (!order) return;
-
-
-    const container =
-        document.getElementById(
-            "work-order-details"
-        );
-
-
-    container.innerHTML = `
-
-        <span class="eyebrow">
-            MUNICIPAL WORK ORDER
-        </span>
-
-        <h2>
-            ${order.id}
-        </h2>
-
-        <br>
-
-        <p>
-            <strong>Repair:</strong>
-            ${escapeHTML(order.type)}
-        </p>
-
-        <p>
-            <strong>Location:</strong>
-            ${escapeHTML(order.location)}
-        </p>
-
-        <p>
-            <strong>Coordinates:</strong>
-            ${order.latitude.toFixed(6)},
-            ${order.longitude.toFixed(6)}
-        </p>
-
-        <p>
-            <strong>Priority:</strong>
-            ${order.priority}/100
-        </p>
-
-        <p>
-            <strong>Contractor:</strong>
-            ${escapeHTML(order.contractor)}
-        </p>
-
-
-        <div class="lifecycle">
-
-            ${lifecycleStep(
-                "Assigned",
-                order.status,
-                ["Assigned"]
-            )}
-
-            ${lifecycleStep(
-                "Accepted",
-                order.status,
-                ["Accepted"]
-            )}
-
-            ${lifecycleStep(
-                "Repair In Progress",
-                order.status,
-                ["In Progress"]
-            )}
-
-            ${lifecycleStep(
-                "Repair Completed",
-                order.status,
-                ["Completed"]
-            )}
-
-            ${lifecycleStep(
-                "Municipal Verification",
-                order.verification,
-                ["Verified"]
-            )}
-
-        </div>
-
-
-        <div class="work-order-actions">
-
-            ${
-                order.status === "Assigned"
-
-                ? `<button
-                        class="btn-primary"
-                        onclick="updateWorkOrder('${order.id}', 'Accepted')"
-                   >
-                        Accept Work Order
-                   </button>`
-
-                : ""
-            }
-
-
-            ${
-                order.status === "Accepted"
-
-                ? `<button
-                        class="btn-primary"
-                        onclick="updateWorkOrder('${order.id}', 'In Progress')"
-                   >
-                        Start Repair
-                   </button>`
-
-                : ""
-            }
-
-
-            ${
-                order.status === "In Progress"
-
-                ? `
-
-                    <label class="btn-outline">
-
-                        Upload After-Repair Evidence
-
-                        <input
-                            type="file"
-                            accept="image/*"
-                            onchange="uploadRepairEvidence(event, '${order.id}')"
-                            style="display:none"
-                        >
-
-                    </label>
-
-                  `
-
-                : ""
-
-            }
-
-
-            ${
-                order.status === "Completed" &&
-                order.verification === "Pending"
-
-                ? `<p>
-                        ⏳ Awaiting municipal verification.
-                   </p>`
-
-                : ""
-
-            }
-
-        </div>
-
-
-        ${
-            order.afterImage
-
-            ? `
-
-                <hr>
-
-                <br>
-
-                <h3>
-                    After-Repair Evidence
-                </h3>
-
-                <img
-                    src="${order.afterImage}"
-                    style="
-                        width:100%;
-                        max-height:400px;
-                        object-fit:cover;
-                        border-radius:8px;
-                        margin-top:1rem;
-                    "
-                >
-
-              `
-
-            : ""
-
-        }
-
-
-        ${
-            order.verification === "Pending" &&
-            order.status === "Completed"
-
-            ? `
-
-                <div class="detail-panel">
-
-                    <strong>
-                        Awaiting Officer Verification
-                    </strong>
-
-                </div>
-
-              `
-
-            : ""
-
-        }
-
-    `;
-
-
-    showView("view-work-order");
-
-}
-
-
-/* =====================================================
-   LIFECYCLE STEP
-===================================================== */
-
-function lifecycleStep(
-    name,
-    current,
-    completedStates
-) {
-
-    let className =
-        "lifecycle-step";
-
-
-    if (
-        completedStates.includes(current)
-    ) {
-
-        className += " current";
-
-    }
-
-
-    return `
-        <div class="${className}">
-            ${name}
-        </div>
-    `;
-
-}
-
-
-/* =====================================================
-   WORK ORDER UPDATE
-===================================================== */
-
-function updateWorkOrder(
-    workOrderId,
-    newStatus
-) {
-
-    const order =
-        mockData.workOrders.find(
-            item => item.id === workOrderId
-        );
-
-
-    if (!order) return;
-
-
-    order.status =
-        newStatus;
-
-
-    if (newStatus === "In Progress") {
-
-        const complaint =
-            mockData.complaints.find(
-                item =>
-                    item.id ===
-                    order.complaintId
-            );
-
-
-        if (complaint) {
-
-            complaint.status =
-                "Repair In Progress";
-
-        }
-
-    }
-
-
-    if (newStatus === "Completed") {
-
-        order.verification =
-            "Pending";
-
-    }
-
-
-    openWorkOrder(workOrderId);
-
-}
-
-
-/* =====================================================
-   AFTER REPAIR EVIDENCE
-===================================================== */
-
-function uploadRepairEvidence(
-    event,
-    workOrderId
-) {
-
-    const file =
-        event.target.files[0];
-
-
-    if (!file) return;
-
-
-    if (!file.type.startsWith("image/")) {
-
-        alert(
-            "Please upload an image."
+        console.error(
+            "GPS location is missing."
         );
 
         return;
-
     }
 
 
-    const reader =
-        new FileReader();
+    const complaintData = {
 
+        complaint_id:
+            currentReport.complaintId,
 
-    reader.onload = function(e) {
+        defect_type:
+            currentReport.defectType,
 
-        const order =
-            mockData.workOrders.find(
-                item =>
-                    item.id ===
-                    workOrderId
-            );
+        severity:
+            currentReport.severity,
 
+        priority:
+            currentReport.priority,
 
-        if (!order) return;
+        latitude:
+            currentReport.coords.latitude,
 
+        longitude:
+            currentReport.coords.longitude,
 
-        order.afterImage =
-            e.target.result;
+        gps_accuracy:
+            currentReport.coords.accuracy,
 
+        notes:
+            currentReport.notes,
 
-        order.status =
-            "Completed";
+        status:
+            "Reported",
 
-
-        order.verification =
-            "Pending";
-
-
-        const complaint =
-            mockData.complaints.find(
-                item =>
-                    item.id ===
-                    order.complaintId
-            );
-
-
-        if (complaint) {
-
-            complaint.status =
-                "Awaiting Verification";
-
-        }
-
-
-        alert(
-            "Repair evidence uploaded. Awaiting municipal verification."
-        );
-
-
-        openWorkOrder(workOrderId);
-
+        created_at:
+            new Date().toISOString()
     };
 
 
-    reader.readAsDataURL(file);
+    const {
+        data,
+        error
+    } =
+        await supabaseClient
+            .from("complaints")
+            .insert([
+                complaintData
+            ])
+            .select();
 
+
+    if (error) {
+
+        console.error(
+            "Supabase complaint error:",
+            error
+        );
+
+        return null;
+    }
+
+
+    console.log(
+        "✅ Complaint saved to Supabase:",
+        data
+    );
+
+
+    return data;
 }
 
 
-/* =====================================================
-   UTILITY
-===================================================== */
-
-function escapeHTML(value) {
-
-    return String(value ?? "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-
-}
-
-
-/* =====================================================
-   INITIALIZATION
-===================================================== */
+// ======================================================
+// 37. INITIALIZE APPLICATION
+// ======================================================
 
 window.addEventListener(
     "load",
-    function() {
+    () => {
 
-        showView("view-login");
+        showView(
+            "view-login"
+        );
 
+        console.log(
+            "🚀 Smart City application loaded."
+        );
     }
 );
