@@ -1,0 +1,304 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Urban Infrastructure Lifecycle Engine</title>
+
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;800&display=swap" rel="stylesheet">
+
+<style>
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
+
+body{
+    font-family:"DM Sans",sans-serif;
+    background:linear-gradient(180deg,#F8F6F1,#F2EFE8);
+    color:#183A5A;
+}
+
+.container{
+    width:90%;
+    max-width:1100px;
+    margin:auto;
+}
+
+/* ---------------- HERO ---------------- */
+
+.hero{
+    text-align:center;
+    padding:60px 0 35px;
+}
+
+.badge{
+    display:inline-block;
+    background:#E8F4F6;
+    color:#2E7287;
+    padding:8px 18px;
+    border-radius:999px;
+    font-size:14px;
+    margin-bottom:18px;
+}
+
+.hero h1{
+    font-size:52px;
+    font-weight:800;
+    line-height:1.15;
+    margin-bottom:18px;
+}
+
+.hero p{
+    max-width:720px;
+    margin:auto;
+    color:#62788A;
+    font-size:18px;
+    line-height:1.8;
+}
+
+/* ---------------- UPLOAD CARD ---------------- */
+
+.upload-card{
+    background:white;
+    border-radius:30px;
+    padding:45px;
+    box-shadow:0 20px 45px rgba(22,58,95,.08);
+    border:1px solid #ECE6DB;
+}
+
+/* Upload Area */
+
+.upload-box{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+
+    width:100%;
+    min-height:280px;
+
+    border:2px dashed #4B95A8;
+    border-radius:24px;
+
+    background:linear-gradient(180deg,#F8FCFD,#F3F8FA);
+
+    padding:35px;
+    text-align:center;
+    cursor:pointer;
+    transition:.3s;
+}
+
+.upload-box:hover{
+    transform:translateY(-4px);
+    box-shadow:0 14px 30px rgba(75,149,168,.12);
+}
+
+.icon{
+    width:78px;
+    height:78px;
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+
+    background:#2E7287;
+    color:white;
+
+    border-radius:22px;
+    font-size:34px;
+
+    margin-bottom:20px;
+}
+
+.upload-box h2{
+    font-size:30px;
+    color:#183A5A;
+    margin-bottom:10px;
+}
+
+.upload-box p{
+    color:#6C8294;
+    font-size:16px;
+}
+
+.upload-btn{
+    margin-top:24px;
+    background:#183A5A;
+    color:white;
+    padding:14px 30px;
+    border-radius:12px;
+    font-weight:600;
+    transition:.25s;
+}
+
+.upload-btn:hover{
+    background:#2E7287;
+}
+
+input{
+    display:none;
+}
+
+/* ---------------- CONSTRAINTS ---------------- */
+
+.constraints{
+    margin-top:30px;
+
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:18px;
+}
+
+.item{
+    background:#F5F8FA;
+    border:1px solid #D9E5EB;
+    border-radius:16px;
+    padding:18px;
+    text-align:center;
+}
+
+.item small{
+    display:block;
+    color:#8193A2;
+    margin-bottom:6px;
+}
+
+.item strong{
+    color:#183A5A;
+    font-size:18px;
+}
+
+/* ---------------- DESCRIPTION ---------------- */
+
+.description{
+    text-align:center;
+    max-width:780px;
+    margin:55px auto;
+}
+
+.description h3{
+    font-size:34px;
+    margin-bottom:16px;
+}
+
+.description p{
+    color:#607789;
+    line-height:1.9;
+    font-size:17px;
+}
+
+/* ---------------- FOOTER ---------------- */
+
+footer{
+    text-align:center;
+    padding:30px;
+    color:#748797;
+    border-top:1px solid #DDD7CC;
+    margin-top:25px;
+}
+
+/* ---------------- MOBILE ---------------- */
+
+@media(max-width:768px){
+
+.hero h1{
+    font-size:38px;
+}
+
+.hero p{
+    font-size:16px;
+}
+
+.upload-card{
+    padding:28px;
+}
+
+.upload-box{
+    min-height:230px;
+}
+
+.constraints{
+    grid-template-columns:1fr;
+}
+
+.item strong{
+    font-size:17px;
+}
+
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+
+<section class="hero">
+
+<div class="badge">AI • GIS • Computer Vision</div>
+
+<h1>Autonomous Urban Pothole,<br>Structural Defect & Micro-Flooding Lifecycle Engine</h1>
+
+<p>
+An intelligent platform that converts citizen and dashcam uploads into actionable road maintenance insights through AI-powered detection, severity estimation and GIS mapping.
+</p>
+
+</section>
+
+<section class="upload-card">
+
+<label for="upload" class="upload-box">
+
+<div class="icon">↑</div>
+
+<h2>Upload Road Image or Video</h2>
+
+<p>Submit clear road evidence for automated AI analysis.</p>
+
+<div class="upload-btn">Choose File</div>
+
+</label>
+
+<input id="upload" type="file" accept="image/*,video/*">
+
+<div class="constraints">
+
+<div class="item">
+<small>Supported Formats</small>
+<strong>JPG • PNG • MP4</strong>
+</div>
+
+<div class="item">
+<small>Recommended Resolution</small>
+<strong>720p</strong>
+</div>
+
+<div class="item">
+<small>Maximum File Size</small>
+<strong>50 MB</strong>
+</div>
+
+</div>
+
+</section>
+
+<section class="description">
+
+<h3>Building Smarter Cities</h3>
+
+<p>
+Every verified upload helps identify potholes, structural road damage and waterlogging hotspots before they become major hazards. By combining Computer Vision with GIS intelligence, the platform enables faster, data-driven maintenance planning for safer urban roads.
+</p>
+
+</section>
+
+<footer>
+Smart City Infrastructure • Computer Vision • GIS Analytics
+</footer>
+
+</div>
+
+</body>
+</html>
