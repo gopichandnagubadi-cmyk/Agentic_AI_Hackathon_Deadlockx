@@ -2,4 +2,4 @@
 
 Batch-number 50
 
-gopi madatha kojja
+gopi manchi baludu
