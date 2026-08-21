@@ -2,4 +2,6 @@
 
 Batch-number 50
 
-gopi manchi baludu
+gopi manchi baludu ani vaadi opinion
+
+bokkale
