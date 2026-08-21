@@ -314,6 +314,10 @@ textarea {
     box-shadow: 0 2px 8px rgba(0,0,0,0.04);
 }
 
+.stat-card.danger {
+    border-left-color: var(--danger);
+}
+
 .stat-card h3 {
     font-size: 2rem;
 }
@@ -861,6 +865,15 @@ th {
 
 .work-order-card p {
     color: var(--muted);
+}
+
+.status-badge.danger {
+    background: #ffebe6;
+    color: var(--danger);
+    padding: 4px 7px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 700;
 }
 
 .work-order-actions {

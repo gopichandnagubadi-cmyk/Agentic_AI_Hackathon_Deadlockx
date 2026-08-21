@@ -45,6 +45,18 @@ async function testSupabaseConnection() {
 
 testSupabaseConnection();
 
+let currentUser = null;
+
+let currentRole = null;
+
+let databaseComplaints = [];
+
+let databaseWorkOrders = [];
+
+let databaseDrainage = [];
+
+let databaseWaterlogging = [];
+
 async function saveComplaintToSupabase() {
 
     // Check whether image exists
@@ -59,28 +71,28 @@ async function saveComplaintToSupabase() {
         return false;
     }
 
-    // Get citizen notes
-    const notesElement = document.getElementById("report-notes");
+    collectReportDetails();
 
-    const notes = notesElement
-        ? notesElement.value.trim()
-        : "";
+    if (!currentUser) {
+        alert("Please log in before submitting a complaint.");
+        return false;
+    }
 
     // Create complaint data
     const complaintData = {
-        complaint_id: "CR-" + Date.now(),
+        complaint_id: generateComplaintId(),
 
-        user_id: null,
+        user_id: currentUser.id,
 
         image_url: currentReport.image,
 
-        latitude: currentReport.coords.lat,
+        latitude: currentReport.coords.latitude,
 
-        longitude: currentReport.coords.lng,
+        longitude: currentReport.coords.longitude,
 
-        accuracy: currentReport.coords.acc,
+        accuracy: currentReport.coords.accuracy,
 
-        notes: notes,
+        notes: currentReport.notes,
 
         status: "Reported"
     };
@@ -125,6 +137,204 @@ async function saveComplaintToSupabase() {
     }
 
     return true;
+}
+
+
+async function loadComplaints() {
+
+    const { data, error } = await supabaseClient
+        .from("complaints")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+    if (error) {
+        console.error("Unable to load complaints:", error);
+        alert("Unable to load complaints: " + error.message);
+        return [];
+    }
+
+    databaseComplaints = data || [];
+    return databaseComplaints;
+}
+
+
+async function loadWorkOrders() {
+
+    const { data, error } = await supabaseClient
+        .from("work_orders")
+        .select("*, complaints(*)")
+        .order("created_at", { ascending: false });
+
+    if (error) {
+        console.error("Unable to load work orders:", error);
+        return [];
+    }
+
+    databaseWorkOrders = data || [];
+    return databaseWorkOrders;
+}
+
+
+async function loadInfrastructure() {
+
+    const [drainageResult, waterloggingResult] = await Promise.all([
+        supabaseClient.from("drainage").select("*").order("created_at"),
+        supabaseClient.from("waterlogging").select("*").order("created_at")
+    ]);
+
+    if (drainageResult.error) {
+        console.error("Unable to load drainage:", drainageResult.error);
+    } else {
+        databaseDrainage = drainageResult.data || [];
+    }
+
+    if (waterloggingResult.error) {
+        console.error("Unable to load waterlogging:", waterloggingResult.error);
+    } else {
+        databaseWaterlogging = waterloggingResult.data || [];
+    }
+}
+
+
+async function updateComplaintStatus(complaintId, status) {
+
+    const { data, error } = await supabaseClient
+        .from("complaints")
+        .update({ status })
+        .eq("complaint_id", complaintId)
+        .select()
+        .single();
+
+    if (error) {
+        console.error("Unable to update complaint status:", error);
+        alert("Unable to update complaint: " + error.message);
+        return null;
+    }
+
+    databaseComplaints = databaseComplaints.map(complaint =>
+        complaint.complaint_id === complaintId ? data : complaint
+    );
+
+    return data;
+}
+
+
+async function updateWorkOrderStatus(complaintId, status) {
+
+    const workOrder = databaseWorkOrders.find(
+        item => item.complaint_id === complaintId
+    );
+
+    if (!workOrder) {
+        return null;
+    }
+
+    const { data, error } = await supabaseClient
+        .from("work_orders")
+        .update({ status })
+        .eq("id", workOrder.id)
+        .select()
+        .single();
+
+    if (error) {
+        console.error("Unable to update work order:", error);
+        alert("Unable to update work order: " + error.message);
+        return null;
+    }
+
+    databaseWorkOrders = databaseWorkOrders.map(item =>
+        item.id === data.id ? { ...item, ...data } : item
+    );
+
+    return data;
+}
+
+
+async function handleLogin() {
+    const email = document.getElementById("login-email").value;
+    const password = document.getElementById("login-password").value;
+
+    const { data: authData, error: authError } = await supabaseClient.auth.signInWithPassword({
+        email,
+        password
+    });
+
+    if (authError) {
+        alert("Login failed: " + authError.message);
+        return;
+    }
+
+    const { data: profile, error: profileError } = await supabaseClient
+        .from("profiles")
+        .select("role, full_name")
+        .eq("id", authData.user.id)
+        .maybeSingle();
+
+    if (profileError || !profile) {
+        await supabaseClient.auth.signOut();
+        alert("No profile was found for this account.");
+        return;
+    }
+
+    currentUser = authData.user;
+    currentRole = profile.role;
+
+    // Update role badge in navigation
+    const badge = document.getElementById("nav-role-badge");
+    if (badge) {
+        badge.innerText = profile.role.toUpperCase();
+    }
+
+    // Direct user to their respective dashboard
+    if (profile.role === "officer") {
+        showView("view-officer-dash");
+    } else if (profile.role === "contractor") {
+        showContractorDashboard();
+    } else {
+        showView("view-citizen-dash");
+    }
+}
+
+
+async function restoreSession() {
+
+    const { data, error } = await supabaseClient.auth.getSession();
+
+    if (error || !data.session) {
+        showView("view-login");
+        return;
+    }
+
+    const { data: profile } = await supabaseClient
+        .from("profiles")
+        .select("role")
+        .eq("id", data.session.user.id)
+        .maybeSingle();
+
+    if (!profile) {
+        await supabaseClient.auth.signOut();
+        showView("view-login");
+        return;
+    }
+
+    currentUser = data.session.user;
+    currentRole = profile.role;
+
+    await Promise.all([
+        loadWorkOrders(),
+        loadInfrastructure()
+    ]);
+
+    const badge = document.getElementById("nav-role-badge");
+    if (badge) badge.innerText = profile.role.toUpperCase();
+
+    if (profile.role === "officer") {
+        showView("view-officer-dash");
+    } else if (profile.role === "contractor") {
+        showContractorDashboard();
+    } else {
+        showView("view-citizen-dash");
+    }
 }
 
 
@@ -296,7 +506,7 @@ function showView(viewId) {
 
     if (viewId === "view-citizen-dash") {
 
-        renderCitizenHistory();
+        loadComplaints().then(renderCitizenHistory);
     }
 }
 
@@ -318,7 +528,7 @@ function renderNavLinks() {
     }
 
     const role =
-        roleElement.value;
+        currentRole || roleElement.value;
 
     let links = "";
 
@@ -361,54 +571,18 @@ function renderNavLinks() {
 
 
 // ======================================================
-// 8. MOCK LOGIN
+// 8. LOGOUT
 // ======================================================
 
-function handleLogin() {
-
-    const roleElement =
-        document.getElementById("login-role");
-
-    const role =
-        roleElement.value;
-
-
-    const badge =
-        document.getElementById("nav-role-badge");
-
-    if (badge) {
-
-        badge.innerText =
-            role === "officer"
-                ? "Municipal Officer"
-                : role === "contractor"
-                    ? "Contractor"
-                    : "Citizen";
-    }
-
-
-    if (role === "officer") {
-
-        showView("view-officer-dash");
-
-    } else if (role === "contractor") {
-
-        showContractorDashboard();
-
-    } else {
-
-        showView("view-citizen-dash");
-    }
-}
-
-
-// ======================================================
-// 9. LOGOUT
-// ======================================================
-
-function logout() {
+async function logout() {
 
     stopCamera();
+
+    await supabaseClient.auth.signOut();
+
+    currentUser = null;
+    currentRole = null;
+    databaseComplaints = [];
 
     showView("view-login");
 }
@@ -930,11 +1104,11 @@ function showMiniMap(
 
     // Nearby drainage
 
-    mockData.drainage.forEach(
+    databaseDrainage.forEach(
         drain => {
 
             L.circleMarker(
-                [drain.lat, drain.lng],
+                [drain.latitude, drain.longitude],
                 {
                     radius: 7,
                     color: "#0047bb"
@@ -950,11 +1124,11 @@ function showMiniMap(
 
     // Waterlogging
 
-    mockData.waterlogging.forEach(
+    databaseWaterlogging.forEach(
         hotspot => {
 
             L.circleMarker(
-                [hotspot.lat, hotspot.lng],
+                [hotspot.latitude, hotspot.longitude],
                 {
                     radius: 8,
                     color: "#de350b"
@@ -1190,10 +1364,6 @@ async function runAnalysisSequence() {
     }
 
 
-    currentReport.complaintId =
-        generateComplaintId();
-
-
     showView(
         "view-processing"
     );
@@ -1264,6 +1434,8 @@ function finalizeAnalysis() {
 
     currentReport.drainageNearby =
         true;
+
+    updateComplaintStatus(currentReport.complaintId, "Analyzed");
 
 
     const resultImage =
@@ -1433,7 +1605,7 @@ function updateFutureRisk(
 // 26. CITIZEN HISTORY
 // ======================================================
 
-function renderCitizenHistory() {
+function renderCitizenHistory(complaints = databaseComplaints) {
 
     const container =
         document.getElementById(
@@ -1446,33 +1618,48 @@ function renderCitizenHistory() {
     }
 
 
+    const visibleComplaints = currentUser
+        ? complaints.filter(item => item.user_id === currentUser.id)
+        : complaints;
+
+    const activeCount = visibleComplaints.filter(item =>
+        !["Closed", "Verified"].includes(item.status)
+    ).length;
+
+    const resolvedCount = visibleComplaints.filter(item =>
+        ["Closed", "Verified"].includes(item.status)
+    ).length;
+
+    document.getElementById("citizen-active-count").innerText = activeCount;
+    document.getElementById("citizen-resolved-count").innerText = resolvedCount;
+
     container.innerHTML =
-        mockData.complaints
+        visibleComplaints
             .map(item => `
 
                 <div class="stat-card">
 
                     <strong>
-                        ${item.id}
+                        ${item.complaint_id}
                     </strong>
 
                     <p>
-                        ${item.type}
+                        Road Defect Report
                     </p>
 
                     <p>
                         Severity:
-                        ${item.severity}
+                        ${item.status}
                     </p>
 
                     <p>
                         Priority:
-                        ${item.priority}/100
+                        ${item.latitude.toFixed(6)}, ${item.longitude.toFixed(6)}
                     </p>
 
                     <p>
                         Status:
-                        ${item.status}
+                        ${new Date(item.created_at).toLocaleString()}
                     </p>
 
                 </div>
@@ -1486,7 +1673,13 @@ function renderCitizenHistory() {
 // 27. OFFICER DASHBOARD
 // ======================================================
 
-function initOfficerDashboard() {
+async function initOfficerDashboard() {
+
+    await Promise.all([
+        loadComplaints(),
+        loadWorkOrders(),
+        loadInfrastructure()
+    ]);
 
     renderOfficerTable();
 
@@ -1515,39 +1708,31 @@ function renderOfficerTable() {
 
 
     tbody.innerHTML =
-        mockData.complaints
+        databaseComplaints
             .map(item => `
 
                 <tr>
 
                     <td>
-                        ${item.id}
+                        ${item.complaint_id}
                     </td>
 
                     <td>
-                        ${item.type}
+                        Guntur
                     </td>
 
                     <td>
-                        ${item.severity}
+                        Road Defect
                     </td>
 
                     <td>
-                        ${item.priority}/100
-                    </td>
-
-                    <td>
-                        ${item.waterRisk}
-                    </td>
-
-                    <td>
-                        ${item.city}
-                    </td>
-
-                    <td>
-                        ${item.lat.toFixed(6)}
+                        ${item.latitude.toFixed(6)}
                         <br>
-                        ${item.lng.toFixed(6)}
+                        ${item.longitude.toFixed(6)}
+                    </td>
+
+                    <td>
+                        ${item.accuracy ? `${item.accuracy} m` : "Manual"}
                     </td>
 
                     <td>
@@ -1555,10 +1740,11 @@ function renderOfficerTable() {
                     </td>
 
                     <td>
+                    <td>
 
                         <button
                             class="btn-primary"
-                            onclick="reviewComplaint('${item.id}')">
+                            onclick="reviewComplaint('${item.complaint_id}')">
 
                             Review
 
@@ -1598,17 +1784,19 @@ function initOfficerMap() {
     }
 
 
-    const firstComplaint =
-        mockData.complaints[0];
+    const firstComplaint = databaseComplaints[0] || {
+        latitude: 16.12345,
+        longitude: 80.12345
+    };
 
 
     officerMapInstance =
         L.map("officer-map")
             .setView(
-                [
-                    firstComplaint.lat,
-                    firstComplaint.lng
-                ],
+                        [
+                            firstComplaint.latitude,
+                            firstComplaint.longitude
+                        ],
                 14
             );
 
@@ -1626,13 +1814,13 @@ function initOfficerMap() {
 
     // Defects
 
-    mockData.complaints.forEach(
+    databaseComplaints.forEach(
         complaint => {
 
             L.circleMarker(
                 [
-                    complaint.lat,
-                    complaint.lng
+                    complaint.latitude,
+                    complaint.longitude
                 ],
                 {
                     color: "#de350b",
@@ -1645,39 +1833,19 @@ function initOfficerMap() {
             .bindPopup(`
 
                 <strong>
-                    ${complaint.id}
+                    ${complaint.complaint_id}
                 </strong>
 
                 <br>
 
-                Type:
-                ${complaint.type}
-
-                <br>
-
-                Severity:
-                ${complaint.severity}
-
-                <br>
-
-                Priority:
-                ${complaint.priority}/100
-
-                <br>
-
-                Water Risk:
-                ${complaint.waterRisk}
-
-                <br>
-
-                City:
-                ${complaint.city}
+                Notes:
+                ${complaint.notes || "No notes provided"}
 
                 <br>
 
                 Coordinates:
-                ${complaint.lat.toFixed(6)},
-                ${complaint.lng.toFixed(6)}
+                ${complaint.latitude.toFixed(6)},
+                ${complaint.longitude.toFixed(6)}
 
             `);
         }
@@ -1686,13 +1854,13 @@ function initOfficerMap() {
 
     // Drainage
 
-    mockData.drainage.forEach(
+    databaseDrainage.forEach(
         drain => {
 
             L.circleMarker(
                 [
-                    drain.lat,
-                    drain.lng
+                    drain.latitude,
+                    drain.longitude
                 ],
                 {
                     color: "#0047bb",
@@ -1718,13 +1886,13 @@ function initOfficerMap() {
 
     // Waterlogging
 
-    mockData.waterlogging.forEach(
+    databaseWaterlogging.forEach(
         hotspot => {
 
             L.circleMarker(
                 [
-                    hotspot.lat,
-                    hotspot.lng
+                    hotspot.latitude,
+                    hotspot.longitude
                 ],
                 {
                     color: "#ffab00",
@@ -1756,9 +1924,9 @@ function reviewComplaint(
 ) {
 
     const complaint =
-        mockData.complaints.find(
+        databaseComplaints.find(
             item =>
-                item.id === complaintId
+                item.complaint_id === complaintId
         );
 
 
@@ -1769,21 +1937,13 @@ function reviewComplaint(
 
     alert(`
 
-Complaint: ${complaint.id}
+Complaint: ${complaint.complaint_id}
 
-Type: ${complaint.type}
-
-Severity: ${complaint.severity}
-
-Priority: ${complaint.priority}/100
-
-Water Risk: ${complaint.waterRisk}
-
-City: ${complaint.city}
+Notes: ${complaint.notes || "No notes provided"}
 
 Coordinates:
-${complaint.lat},
-${complaint.lng}
+${complaint.latitude},
+${complaint.longitude}
 
 Status:
 ${complaint.status}
@@ -1806,9 +1966,10 @@ function showContractorDashboard() {
 
     if (contractorView) {
 
-        showView(
-            "view-contractor-dash"
-        );
+        showView("view-contractor-dash");
+
+        Promise.all([loadComplaints(), loadWorkOrders()])
+            .then(() => renderContractorWorkOrders());
 
         return;
     }
@@ -1820,32 +1981,156 @@ function showContractorDashboard() {
 }
 
 
+function renderContractorWorkOrders() {
+
+    const container = document.getElementById("contractor-work-orders");
+
+    if (!container) {
+        return;
+    }
+
+    const assignedWorkOrders = databaseWorkOrders;
+
+    document.getElementById("contractor-assigned").innerText = assignedWorkOrders.length;
+    document.getElementById("contractor-progress").innerText =
+        assignedWorkOrders.filter(order => order.status === "In Progress").length;
+    document.getElementById("contractor-completed").innerText =
+        assignedWorkOrders.filter(order => order.status === "Repair Completed").length;
+
+    if (!assignedWorkOrders.length) {
+        container.innerHTML = "<p>No work orders are currently assigned.</p>";
+        return;
+    }
+
+    container.innerHTML = assignedWorkOrders.map(workOrder => {
+        const complaint = workOrder.complaints;
+
+        return `
+        <div class="work-order-card">
+            <div class="work-order-header">
+                <div>
+                    <span class="work-order-id">${workOrder.work_order_id}</span>
+                    <h3>Road Defect Repair</h3>
+                </div>
+                <span class="status-badge danger">${workOrder.status}</span>
+            </div>
+            <div class="work-order-details">
+                <div><span>Coordinates</span><strong>${complaint.latitude.toFixed(6)}, ${complaint.longitude.toFixed(6)}</strong></div>
+                <div><span>Accuracy</span><strong>${complaint.accuracy ? `${complaint.accuracy} m` : "Manual"}</strong></div>
+                <div><span>Reported</span><strong>${new Date(complaint.created_at).toLocaleDateString()}</strong></div>
+            </div>
+            <div class="work-order-actions">
+                <button class="btn-secondary" onclick="acceptWorkOrder('${complaint.complaint_id}')">Accept Work</button>
+                <button class="btn-primary" onclick="startWorkOrder('${complaint.complaint_id}')">Start Work</button>
+                <button class="btn-cta" onclick="completeWorkOrder('${complaint.complaint_id}')">Mark Completed</button>
+            </div>
+        </div>
+    `;
+    }).join("");
+}
+
+
+async function acceptWorkOrder(workOrderId) {
+
+    const complaint = await updateComplaintStatus(workOrderId, "Contractor Assigned");
+    await updateWorkOrderStatus(workOrderId, "Accepted");
+
+    if (complaint) alert(`${workOrderId} accepted.`);
+}
+
+
+async function startWorkOrder(workOrderId) {
+
+    const complaint = await updateComplaintStatus(workOrderId, "In Progress");
+    await updateWorkOrderStatus(workOrderId, "In Progress");
+
+    if (complaint) alert(`${workOrderId} work started.`);
+}
+
+
+function uploadRepairEvidence(event, workOrderId) {
+
+    const file = event.target.files[0];
+
+    if (!file || !file.type.startsWith("image/")) {
+        alert("Please select a valid repair image.");
+        return;
+    }
+
+    const targetId =
+        document.getElementById("before-repair-image").getAttribute("src")
+            ? "after-repair-image"
+            : "before-repair-image";
+
+    const reader = new FileReader();
+
+    reader.onload = event => {
+        document.getElementById(targetId).src = event.target.result;
+        alert(`Repair evidence uploaded for ${workOrderId}.`);
+    };
+
+    reader.readAsDataURL(file);
+}
+
+
+async function completeWorkOrder(workOrderId) {
+
+    const complaint = await updateComplaintStatus(workOrderId, "Repair Completed");
+    await updateWorkOrderStatus(workOrderId, "Repair Completed");
+
+    if (!complaint) return;
+
+    showView("view-repair-verification");
+    alert(`${workOrderId} submitted for municipal verification.`);
+}
+
+
+async function reopenRepair() {
+
+    const complaintId = databaseComplaints[0]?.complaint_id;
+    const complaint = await updateComplaintStatus(complaintId, "Contractor Assigned");
+    await updateWorkOrderStatus(complaintId, "Reopened");
+
+    if (complaint) alert("Repair rejected and sent back to the contractor.");
+}
+
+
 // ======================================================
 // 32. CREATE WORK ORDER
 // ======================================================
 
-function createWorkOrder(
+async function createWorkOrder(
     complaintId
 ) {
 
-    const complaint =
-        mockData.complaints.find(
-            item =>
-                item.id === complaintId
-        );
+    const workOrder = {
+        work_order_id: "WO-" + Date.now().toString().slice(-6),
+        complaint_id: complaintId,
+        status: "Assigned"
+    };
 
+    const { data, error } = await supabaseClient
+        .from("work_orders")
+        .insert(workOrder)
+        .select()
+        .single();
 
-    if (!complaint) {
+    if (error) {
+        alert("Unable to create work order: " + error.message);
         return;
     }
 
+    databaseWorkOrders.unshift(data);
 
-    complaint.status =
-        "Work Order Created";
+    const complaint = await updateComplaintStatus(
+        complaintId,
+        "Work Order Created"
+    );
 
+    if (!complaint) return;
 
     alert(
-        `Work order created for ${complaint.id}`
+        `Work order created for ${complaint.complaint_id}`
     );
 
 
@@ -1857,17 +2142,10 @@ function createWorkOrder(
 // 33. ASSIGN CONTRACTOR
 // ======================================================
 
-function assignContractor(
+async function assignContractor(
     complaintId,
     contractorId
 ) {
-
-    const complaint =
-        mockData.complaints.find(
-            item =>
-                item.id === complaintId
-        );
-
 
     const contractor =
         mockData.contractors.find(
@@ -1876,19 +2154,39 @@ function assignContractor(
         );
 
 
-    if (!complaint ||
-        !contractor) {
+    if (!contractor) {
 
         return;
     }
 
+    const complaint = await updateComplaintStatus(
+        complaintId,
+        "Contractor Assigned"
+    );
 
-    complaint.status =
-        "Contractor Assigned";
+    if (!complaint) return;
+
+    const workOrder = databaseWorkOrders.find(
+        item => item.complaint_id === complaintId
+    );
+
+    if (workOrder) {
+        const contractorIsUserId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+            .test(contractorId);
+
+        const update = contractorIsUserId
+            ? { contractor_id: contractorId, status: "Assigned" }
+            : { status: "Assigned" };
+
+        await supabaseClient
+            .from("work_orders")
+            .update(update)
+            .eq("id", workOrder.id);
+    }
 
 
     alert(
-        `${contractor.name} assigned to ${complaint.id}`
+        `${contractor.name} assigned to ${complaint.complaint_id}`
     );
 
 
@@ -1900,27 +2198,19 @@ function assignContractor(
 // 34. MARK WORK COMPLETED
 // ======================================================
 
-function markWorkCompleted(
+async function markWorkCompleted(
     complaintId
 ) {
 
-    const complaint =
-        mockData.complaints.find(
-            item =>
-                item.id === complaintId
-        );
+    const complaint = await updateComplaintStatus(
+        complaintId,
+        "Repair Completed"
+    );
 
-
-    if (!complaint) {
-        return;
-    }
-
-
-    complaint.status =
-        "Repair Completed";
+    if (!complaint) return;
 
     alert(
-        `${complaint.id} marked as repair completed.`
+        `${complaint.complaint_id} marked as repair completed.`
     );
 }
 
@@ -1929,15 +2219,12 @@ function markWorkCompleted(
 // 35. VERIFY REPAIR
 // ======================================================
 
-function verifyRepair(
+async function verifyRepair(
     complaintId
 ) {
 
-    const complaint =
-        mockData.complaints.find(
-            item =>
-                item.id === complaintId
-        );
+    const targetComplaint = complaintId || databaseComplaints[0]?.complaint_id;
+    const complaint = await updateComplaintStatus(targetComplaint, "Closed");
 
 
     if (!complaint) {
@@ -1950,7 +2237,7 @@ function verifyRepair(
 
 
     alert(
-        `${complaint.id} has been verified and closed.`
+        `${complaint.complaint_id} has been verified and closed.`
     );
 
 
@@ -1959,90 +2246,7 @@ function verifyRepair(
 
 
 // ======================================================
-// 36. SUBMIT COMPLAINT TO SUPABASE
-// ======================================================
-
-async function submitComplaintToSupabase() {
-
-    if (!currentReport.coords) {
-
-        console.error(
-            "GPS location is missing."
-        );
-
-        return;
-    }
-
-
-    const complaintData = {
-
-        complaint_id:
-            currentReport.complaintId,
-
-        defect_type:
-            currentReport.defectType,
-
-        severity:
-            currentReport.severity,
-
-        priority:
-            currentReport.priority,
-
-        latitude:
-            currentReport.coords.latitude,
-
-        longitude:
-            currentReport.coords.longitude,
-
-        gps_accuracy:
-            currentReport.coords.accuracy,
-
-        notes:
-            currentReport.notes,
-
-        status:
-            "Reported",
-
-        created_at:
-            new Date().toISOString()
-    };
-
-
-    const {
-        data,
-        error
-    } =
-        await supabaseClient
-            .from("complaints")
-            .insert([
-                complaintData
-            ])
-            .select();
-
-
-    if (error) {
-
-        console.error(
-            "Supabase complaint error:",
-            error
-        );
-
-        return null;
-    }
-
-
-    console.log(
-        "✅ Complaint saved to Supabase:",
-        data
-    );
-
-
-    return data;
-}
-
-
-// ======================================================
-// 37. INITIALIZE APPLICATION
+// 36. INITIALIZE APPLICATION
 // ======================================================
 
 window.addEventListener(
