@@ -3,214 +3,1130 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartCity | Urban Infra Lifecycle Engine</title>
-    <!-- Leaflet GIS Map CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <title>SmartCity | Urban Infrastructure Lifecycle Engine</title>
+
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    />
+
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet"
+    >
+
     <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
 </head>
+
 <body>
 
-    <!-- Main Navigation (Hidden on Login) -->
-    <nav id="app-nav" class="hidden">
-        <div class="nav-container">
-            <div class="brand">SMART<span>CITY</span></div>
-            <div id="nav-links" class="nav-links">
-                <!-- Dynamic Links based on Role -->
-            </div>
-            <div class="nav-user">
-                <span id="nav-role-badge">Citizen</span>
-                <button onclick="logout()" class="btn-text">Logout</button>
-            </div>
+<!-- =====================================================
+     NAVIGATION
+===================================================== -->
+
+<nav id="app-nav" class="hidden">
+
+    <div class="nav-container">
+
+        <div class="brand">
+            SMART<span>CITY</span>
         </div>
-    </nav>
 
-    <main id="app-container">
-        
-        <!-- SECTION: LOGIN -->
-        <section id="view-login" class="view">
-            <div class="login-card">
-                <h1>Infrastructure Lifecycle Engine</h1>
-                <p>Autonomous Road Defect & Risk Management</p>
-                <div class="form-group">
-                    <label>Prototype Role Selector</label>
-                    <select id="login-role">
-                        <option value="citizen">Citizen</option>
-                        <option value="officer">Municipal Officer</option>
-                        <option value="contractor">Contractor</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Email</label>
-                    <input type="email" placeholder="user@smartcity.gov" value="demo@example.com">
-                </div>
-                <div class="form-group">
-                    <label>Password</label>
-                    <input type="password" value="••••••••">
-                </div>
-                <button class="btn-primary full-width" onclick="handleLogin()">Login to Dashboard</button>
-                <p class="note">Prototype Login — Authentication will be connected to backend.</p>
-            </div>
-        </section>
+        <div id="nav-links" class="nav-links"></div>
 
-        <!-- SECTION: CITIZEN DASHBOARD -->
-        <section id="view-citizen-dash" class="view hidden">
-            <div class="dash-header">
-                <h2>Citizen Dashboard</h2>
-                <button class="btn-cta" onclick="showView('view-report-wizard')">+ Report Road Problem</button>
-            </div>
-            <div class="stats-grid">
-                <div class="stat-card"><h3>2</h3><p>Active</p></div>
-                <div class="stat-card"><h3>5</h3><p>Resolved</p></div>
-                <div class="stat-card danger"><h3>3</h3><p>High Risk Nearby</p></div>
-            </div>
-            <h3>My Complaint History</h3>
-            <div id="citizen-history-list" class="list-container">
-                <!-- Data injected via JS -->
-            </div>
-        </section>
+        <div class="nav-user">
 
-        <!-- SECTION: REPORTING WIZARD -->
-        <section id="view-report-wizard" class="view hidden">
-            <div class="wizard-header">
-                <button class="btn-text" onclick="showView('view-citizen-dash')">← Back</button>
-                <h2>Report New Defect</h2>
+            <span id="nav-role-badge">
+                Citizen
+            </span>
+
+            <button
+                onclick="logout()"
+                class="btn-text"
+            >
+                Logout
+            </button>
+
+        </div>
+
+    </div>
+
+</nav>
+
+
+<main id="app-container">
+
+
+<!-- =====================================================
+     LOGIN
+===================================================== -->
+
+<section id="view-login" class="view">
+
+    <div class="login-card">
+
+        <div class="login-icon">
+            🏙️
+        </div>
+
+        <h1>Infrastructure Lifecycle Engine</h1>
+
+        <p class="subtitle">
+            Autonomous Road Defect & Micro-Flooding Risk Management
+        </p>
+
+        <div class="form-group">
+
+            <label for="login-role">
+                Prototype Role
+            </label>
+
+            <select id="login-role">
+
+                <option value="citizen">
+                    Citizen
+                </option>
+
+                <option value="officer">
+                    Municipal Officer
+                </option>
+
+                <option value="contractor">
+                    Contractor
+                </option>
+
+            </select>
+
+        </div>
+
+
+        <div class="form-group">
+
+            <label>Email</label>
+
+            <input
+                type="email"
+                id="login-email"
+                value="demo@example.com"
+            >
+
+        </div>
+
+
+        <div class="form-group">
+
+            <label>Password</label>
+
+            <input
+                type="password"
+                value="demo123"
+            >
+
+        </div>
+
+
+        <button
+            class="btn-primary full-width"
+            onclick="handleLogin()"
+        >
+            Login to Dashboard
+        </button>
+
+
+        <p class="note">
+            Prototype Login — Authentication will be connected
+            to the FastAPI backend.
+        </p>
+
+    </div>
+
+</section>
+
+
+
+<!-- =====================================================
+     CITIZEN DASHBOARD
+===================================================== -->
+
+<section id="view-citizen-dash" class="view hidden">
+
+    <div class="dash-header">
+
+        <div>
+
+            <span class="eyebrow">
+                CITIZEN PORTAL
+            </span>
+
+            <h2>
+                Road Infrastructure Dashboard
+            </h2>
+
+            <p>
+                Report road defects and track their repair lifecycle.
+            </p>
+
+        </div>
+
+        <button
+            class="btn-cta"
+            onclick="startNewReport()"
+        >
+            + Report Road Problem
+        </button>
+
+    </div>
+
+
+    <div class="stats-grid">
+
+        <div class="stat-card">
+            <h3>2</h3>
+            <p>Active Complaints</p>
+        </div>
+
+        <div class="stat-card success-card">
+            <h3>5</h3>
+            <p>Resolved Complaints</p>
+        </div>
+
+        <div class="stat-card danger-card">
+            <h3>3</h3>
+            <p>High-Risk Nearby</p>
+        </div>
+
+        <div class="stat-card warning-card">
+            <h3>2</h3>
+            <p>Water-Risk Areas</p>
+        </div>
+
+    </div>
+
+
+    <div class="section-title">
+
+        <h3>
+            My Complaint History
+        </h3>
+
+    </div>
+
+
+    <div
+        id="citizen-history-list"
+        class="list-container"
+    ></div>
+
+</section>
+
+
+
+<!-- =====================================================
+     CITIZEN REPORT WIZARD
+===================================================== -->
+
+<section id="view-report-wizard" class="view hidden">
+
+    <div class="wizard-header">
+
+        <button
+            class="btn-text dark-text"
+            onclick="showView('view-citizen-dash')"
+        >
+            ← Back
+        </button>
+
+        <div>
+
+            <span class="eyebrow">
+                NEW REPORT
+            </span>
+
+            <h2>
+                Report Road Defect
+            </h2>
+
+        </div>
+
+    </div>
+
+
+    <div class="wizard-card">
+
+
+        <!-- CAMERA -->
+
+        <div class="wizard-step">
+
+            <div class="step-heading">
+
+                <span class="step-number">
+                    1
+                </span>
+
+                <div>
+
+                    <h3>
+                        Capture Defect Photo
+                    </h3>
+
+                    <p>
+                        Photograph the road defect clearly.
+                    </p>
+
+                </div>
+
             </div>
-            
-            <div class="wizard-card">
-                <!-- 1. Camera Section -->
-                <div class="wizard-step">
-                    <h3>1. Capture Defect Photo</h3>
-                    <div id="camera-container" class="camera-ui">
-                        <video id="camera-stream" autoplay playsinline class="hidden"></video>
-                        <img id="photo-preview" class="hidden">
-                        <div id="camera-placeholder">
-                            <div class="icon-placeholder">📷</div>
-                            <p>Camera not active</p>
+
+
+            <div
+                id="camera-container"
+                class="camera-ui"
+            >
+
+                <video
+                    id="camera-stream"
+                    autoplay
+                    playsinline
+                    class="hidden"
+                ></video>
+
+                <img
+                    id="photo-preview"
+                    class="hidden"
+                    alt="Captured road defect"
+                >
+
+                <div id="camera-placeholder">
+
+                    <div class="icon-placeholder">
+                        📷
+                    </div>
+
+                    <p>
+                        Camera not active
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            <div class="camera-controls">
+
+                <button
+                    id="btn-open-camera"
+                    class="btn-secondary"
+                    onclick="startCamera()"
+                >
+                    📷 Open Camera
+                </button>
+
+                <button
+                    id="btn-capture"
+                    class="btn-primary hidden"
+                    onclick="capturePhoto()"
+                >
+                    Capture Image
+                </button>
+
+
+                <label class="upload-btn-wrapper">
+
+                    <span class="btn-outline">
+                        Upload Gallery
+                    </span>
+
+                    <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onchange="handleUpload(event)"
+                    >
+
+                </label>
+
+            </div>
+
+        </div>
+
+
+
+        <!-- GPS -->
+
+        <div class="wizard-step">
+
+            <div class="step-heading">
+
+                <span class="step-number">
+                    2
+                </span>
+
+                <div>
+
+                    <h3>
+                        Defect Location
+                    </h3>
+
+                    <p>
+                        GPS is required for GIS mapping and risk analysis.
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            <div class="privacy-note">
+
+                📍 Location access is used only to map the reported
+                road defect and perform nearby infrastructure/risk analysis.
+                No background tracking is performed.
+
+            </div>
+
+
+            <div
+                id="location-display"
+                class="location-card"
+            >
+
+                <div class="location-empty">
+
+                    <strong>
+                        Location not captured
+                    </strong>
+
+                    <span>
+                        Use GPS or enter the location manually.
+                    </span>
+
+                </div>
+
+
+                <button
+                    class="btn-secondary"
+                    onclick="captureGPS()"
+                >
+                    📍 Use My Current Location
+                </button>
+
+            </div>
+
+
+            <div
+                id="gps-status"
+                class="gps-status hidden"
+            ></div>
+
+
+            <!-- MANUAL LOCATION -->
+
+            <div class="manual-location">
+
+                <div class="manual-location-header">
+
+                    <strong>
+                        Can't access GPS?
+                    </strong>
+
+                    <button
+                        class="btn-link"
+                        onclick="toggleManualLocation()"
+                    >
+                        Enter Location Manually
+                    </button>
+
+                </div>
+
+
+                <div
+                    id="manual-location-form"
+                    class="manual-location-form hidden"
+                >
+
+                    <div class="form-grid">
+
+                        <div class="form-group">
+
+                            <label>
+                                Latitude
+                            </label>
+
+                            <input
+                                type="number"
+                                id="manual-latitude"
+                                step="any"
+                                placeholder="16.123456"
+                            >
+
                         </div>
-                    </div>
-                    <div class="camera-controls">
-                        <button id="btn-open-camera" class="btn-secondary" onclick="startCamera()">Open Camera</button>
-                        <button id="btn-capture" class="btn-primary hidden" onclick="capturePhoto()">Capture Image</button>
-                        <div class="upload-btn-wrapper">
-                            <button class="btn-outline">Upload Gallery</button>
-                            <input type="file" accept="image/*" onchange="handleUpload(event)">
+
+
+                        <div class="form-group">
+
+                            <label>
+                                Longitude
+                            </label>
+
+                            <input
+                                type="number"
+                                id="manual-longitude"
+                                step="any"
+                                placeholder="80.123456"
+                            >
+
                         </div>
+
                     </div>
+
+
+                    <button
+                        class="btn-outline"
+                        onclick="useManualLocation()"
+                    >
+                        Use This Location
+                    </button>
+
+                    <p class="manual-help">
+                        Enter valid latitude between -90 and 90
+                        and longitude between -180 and 180.
+                    </p>
+
                 </div>
 
-                <!-- 2. Location Section -->
-                <div class="wizard-step">
-                    <h3>2. GPS Location</h3>
-                    <p class="privacy-note">Location access is used only to map defects and analyze infrastructure risk.</p>
-                    <div id="location-display" class="location-card">
-                        <div class="loc-text">📍 Location not captured</div>
-                        <button class="btn-secondary" onclick="captureGPS()">Get Current Location</button>
-                    </div>
-                    <div id="mini-map" class="mini-map hidden"></div>
+            </div>
+
+
+            <div
+                id="mini-map"
+                class="mini-map hidden"
+            ></div>
+
+        </div>
+
+
+
+        <!-- OBSERVATION -->
+
+        <div class="wizard-step">
+
+            <div class="step-heading">
+
+                <span class="step-number">
+                    3
+                </span>
+
+                <div>
+
+                    <h3>
+                        Observation
+                    </h3>
+
+                    <p>
+                        Provide additional information if available.
+                    </p>
+
                 </div>
 
-                <!-- 3. Details -->
-                <div class="wizard-step">
-                    <h3>3. Observation</h3>
-                    <textarea id="report-notes" placeholder="Describe the problem (optional)"></textarea>
-                </div>
-
-                <button id="btn-analyze" class="btn-primary full-width" onclick="runAnalysisSequence()" disabled>Analyze & Submit Report</button>
-            </div>
-        </section>
-
-        <!-- SECTION: AI ANALYSIS ANIMATION -->
-        <section id="view-processing" class="view hidden">
-            <div class="processing-container">
-                <div class="spinner"></div>
-                <h2>AI Processing Engine</h2>
-                <ul id="analysis-steps" class="process-steps">
-                    <li id="step-1">Image received</li>
-                    <li id="step-2">Detecting road defects</li>
-                    <li id="step-3">Segmenting defect area</li>
-                    <li id="step-4">Estimating severity</li>
-                    <li id="step-5">Checking nearby drainage</li>
-                    <li id="step-6">Calculating maintenance priority</li>
-                </ul>
-            </div>
-        </section>
-
-        <!-- SECTION: AI RESULTS -->
-        <section id="view-results" class="view hidden">
-            <div class="result-header high-risk">
-                <h2>Analysis: High Maintenance Priority</h2>
-            </div>
-            
-            <div class="result-grid">
-                <div class="result-card">
-                    <h3>Computer Vision Analysis</h3>
-                    <div class="image-segmentation-container">
-                        <img id="result-img" src="">
-                        <div class="segment-overlay"></div>
-                    </div>
-                    <div class="data-row"><span>Type:</span> <strong>Pothole</strong></div>
-                    <div class="data-row"><span>Confidence:</span> <strong>94%</strong></div>
-                    <div class="data-row"><span>Severity:</span> <strong class="text-danger">HIGH</strong></div>
-                    <div class="data-row"><span>Size:</span> <strong>Large</strong></div>
-                </div>
-
-                <div class="result-card">
-                    <h3>Infrastructure Correlation</h3>
-                    <div class="data-row"><span>Drainage Nearby:</span> <strong>YES (42m)</strong></div>
-                    <div class="data-row"><span>Historical Waterlogging:</span> <strong>HIGH</strong></div>
-                    <p class="note">Spatial correlation detected with waterlogging hotspot.</p>
-                    <hr>
-                    <h3>Future Water Risk</h3>
-                    <div class="risk-scenario">
-                        <button onclick="updateFutureRisk('normal')">Normal Rain</button>
-                        <button class="active" onclick="updateFutureRisk('heavy')">Heavy Rain</button>
-                    </div>
-                    <div class="risk-bar-container">
-                        <div id="risk-bar" class="risk-bar" style="width: 85%;"></div>
-                    </div>
-                    <p id="risk-label">Scenario Risk: VERY HIGH</p>
-                </div>
             </div>
 
-            <div class="priority-box">
-                <h3>Priority Score: 87/100</h3>
-                <p>Duplicate Check: No duplicates found. Status: Unique Defect.</p>
+
+            <textarea
+                id="report-notes"
+                placeholder="Example: Large pothole near the junction. Water accumulates here during heavy rain."
+            ></textarea>
+
+        </div>
+
+
+        <button
+            id="btn-analyze"
+            class="btn-primary full-width submit-report-btn"
+            onclick="runAnalysisSequence()"
+            disabled
+        >
+            Analyze & Submit Report
+        </button>
+
+        <p class="form-footer-note">
+            Your image and location will be analyzed for road
+            defects, drainage proximity, waterlogging risk and
+            maintenance priority.
+        </p>
+
+    </div>
+
+</section>
+
+
+
+<!-- =====================================================
+     PROCESSING
+===================================================== -->
+
+<section id="view-processing" class="view hidden">
+
+    <div class="processing-container">
+
+        <div class="spinner"></div>
+
+        <span class="eyebrow">
+            AI ANALYSIS ENGINE
+        </span>
+
+        <h2>
+            Analyzing Road Condition
+        </h2>
+
+        <p>
+            This prototype simulates the future ML + GIS pipeline.
+        </p>
+
+
+        <ul
+            id="analysis-steps"
+            class="process-steps"
+        >
+
+            <li id="step-1">
+                Image received
+            </li>
+
+            <li id="step-2">
+                Detecting road defects
+            </li>
+
+            <li id="step-3">
+                Segmenting defect area
+            </li>
+
+            <li id="step-4">
+                Estimating severity
+            </li>
+
+            <li id="step-5">
+                Checking nearby drainage
+            </li>
+
+            <li id="step-6">
+                Checking waterlogging risk
+            </li>
+
+            <li id="step-7">
+                Calculating maintenance priority
+            </li>
+
+        </ul>
+
+    </div>
+
+</section>
+
+
+
+<!-- =====================================================
+     RESULTS
+===================================================== -->
+
+<section id="view-results" class="view hidden">
+
+    <div class="result-header high-risk">
+
+        <span class="eyebrow">
+            AI + GIS ANALYSIS
+        </span>
+
+        <h2>
+            High Maintenance Priority
+        </h2>
+
+        <p>
+            Road defect detected and spatial risk analysis completed.
+        </p>
+
+    </div>
+
+
+    <div class="result-grid">
+
+
+        <!-- COMPUTER VISION -->
+
+        <div class="result-card">
+
+            <h3>
+                Computer Vision Analysis
+            </h3>
+
+
+            <div class="image-segmentation-container">
+
+                <img
+                    id="result-img"
+                    src=""
+                    alt="Analyzed road defect"
+                >
+
+                <div class="segment-overlay"></div>
+
+                <span class="ai-label">
+                    AI DETECTED
+                </span>
+
             </div>
 
-            <button class="btn-primary full-width mt-2" onclick="showView('view-citizen-dash')">Finish & Track Progress</button>
-        </section>
 
-        <!-- SECTION: OFFICER DASHBOARD -->
-        <section id="view-officer-dash" class="view hidden">
-            <div class="dash-header">
-                <h2>Officer Command Center</h2>
+            <div class="data-row">
+                <span>Type</span>
+                <strong>Pothole</strong>
             </div>
-            <div id="officer-map" class="main-map"></div>
-            <h3>Priority Queue</h3>
-            <div class="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Type</th>
-                            <th>Priority</th>
-                            <th>Water Risk</th>
-                            <th>Status</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody id="officer-table-body">
-                        <!-- Data injected via JS -->
-                    </tbody>
-                </table>
+
+            <div class="data-row">
+                <span>Confidence</span>
+                <strong>94%</strong>
             </div>
-        </section>
 
-    </main>
+            <div class="data-row">
+                <span>Severity</span>
+                <strong class="text-danger">HIGH</strong>
+            </div>
 
-    <!-- Leaflet JS -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="script.js"></script>
+            <div class="data-row">
+                <span>Estimated Size</span>
+                <strong>Large</strong>
+            </div>
+
+            <div class="data-row">
+                <span>Approx. Depth</span>
+                <strong>Moderate</strong>
+            </div>
+
+            <p class="note">
+                Depth is an AI estimate and requires field verification.
+            </p>
+
+        </div>
+
+
+
+        <!-- INFRASTRUCTURE -->
+
+        <div class="result-card">
+
+            <h3>
+                Infrastructure Correlation
+            </h3>
+
+
+            <div class="data-row">
+
+                <span>
+                    Drainage Nearby
+                </span>
+
+                <strong>
+                    YES — 42m
+                </strong>
+
+            </div>
+
+
+            <div class="data-row">
+
+                <span>
+                    Historical Waterlogging
+                </span>
+
+                <strong>
+                    HIGH
+                </strong>
+
+            </div>
+
+
+            <div class="risk-alert">
+
+                💧 Spatial correlation detected with
+                waterlogging-risk area.
+
+            </div>
+
+
+            <hr>
+
+
+            <h3>
+                Future Water Risk
+            </h3>
+
+
+            <div class="risk-scenario">
+
+                <button
+                    id="risk-normal"
+                    onclick="updateFutureRisk('normal', this)"
+                >
+                    Normal Rain
+                </button>
+
+                <button
+                    id="risk-heavy"
+                    class="active"
+                    onclick="updateFutureRisk('heavy', this)"
+                >
+                    Heavy Rain
+                </button>
+
+                <button
+                    id="risk-extreme"
+                    onclick="updateFutureRisk('extreme', this)"
+                >
+                    Extreme Rain
+                </button>
+
+            </div>
+
+
+            <div class="risk-bar-container">
+
+                <div
+                    id="risk-bar"
+                    class="risk-bar"
+                    style="width:85%"
+                ></div>
+
+            </div>
+
+
+            <p id="risk-label">
+                Scenario Risk: VERY HIGH
+            </p>
+
+
+            <p class="note">
+                Prototype estimate based on defect severity,
+                drainage proximity and environmental indicators.
+                It is not a guaranteed flood prediction.
+            </p>
+
+        </div>
+
+    </div>
+
+
+
+    <!-- LOCATION -->
+
+    <div class="result-card">
+
+        <h3>
+            📍 Defect Location
+        </h3>
+
+        <div
+            id="result-location"
+            class="location-result"
+        ></div>
+
+    </div>
+
+
+
+    <!-- PRIORITY -->
+
+    <div class="priority-box">
+
+        <span class="eyebrow">
+            MAINTENANCE PRIORITY
+        </span>
+
+        <h3>
+            87 / 100
+        </h3>
+
+        <span class="critical-badge">
+            CRITICAL
+        </span>
+
+
+        <div class="priority-breakdown">
+
+            <div>
+                Defect Severity
+                <strong>30/35</strong>
+            </div>
+
+            <div>
+                Waterlogging Risk
+                <strong>20/20</strong>
+            </div>
+
+            <div>
+                Road Importance
+                <strong>15/20</strong>
+            </div>
+
+            <div>
+                Complaint Frequency
+                <strong>12/15</strong>
+            </div>
+
+            <div>
+                Defect Age
+                <strong>10/10</strong>
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <div class="result-actions">
+
+        <button
+            class="btn-primary"
+            onclick="finishReport()"
+        >
+            Finish & Track Progress
+        </button>
+
+    </div>
+
+</section>
+
+
+
+<!-- =====================================================
+     OFFICER DASHBOARD
+===================================================== -->
+
+<section id="view-officer-dash" class="view hidden">
+
+    <div class="dash-header">
+
+        <div>
+
+            <span class="eyebrow">
+                MUNICIPAL OPERATIONS
+            </span>
+
+            <h2>
+                Officer Command Center
+            </h2>
+
+            <p>
+                Monitor defects, locations, risks and maintenance work.
+            </p>
+
+        </div>
+
+    </div>
+
+
+    <div class="stats-grid">
+
+        <div class="stat-card">
+            <h3 id="officer-total">
+                0
+            </h3>
+            <p>Total Defects</p>
+        </div>
+
+        <div class="stat-card danger-card">
+            <h3>
+                2
+            </h3>
+            <p>High Priority</p>
+        </div>
+
+        <div class="stat-card warning-card">
+            <h3>
+                2
+            </h3>
+            <p>Water-Risk Defects</p>
+        </div>
+
+        <div class="stat-card success-card">
+            <h3>
+                3
+            </h3>
+            <p>Completed Repairs</p>
+        </div>
+
+    </div>
+
+
+    <div class="map-card">
+
+        <div class="section-title">
+
+            <div>
+
+                <h3>
+                    GIS Defect Map
+                </h3>
+
+                <p>
+                    Defects, drainage and waterlogging hotspots
+                </p>
+
+            </div>
+
+        </div>
+
+        <div
+            id="officer-map"
+            class="main-map"
+        ></div>
+
+    </div>
+
+
+
+    <h3 class="section-heading">
+        Priority Queue
+    </h3>
+
+
+    <div class="table-container">
+
+        <table>
+
+            <thead>
+
+                <tr>
+
+                    <th>ID</th>
+                    <th>Type</th>
+                    <th>City / Area</th>
+                    <th>Coordinates</th>
+                    <th>Priority</th>
+                    <th>Water Risk</th>
+                    <th>Status</th>
+                    <th>Action</th>
+
+                </tr>
+
+            </thead>
+
+            <tbody id="officer-table-body"></tbody>
+
+        </table>
+
+    </div>
+
+
+
+    <div
+        id="officer-detail-panel"
+        class="detail-panel hidden"
+    ></div>
+
+</section>
+
+
+
+<!-- =====================================================
+     CONTRACTOR DASHBOARD
+===================================================== -->
+
+<section id="view-contractor-dash" class="view hidden">
+
+    <div class="dash-header">
+
+        <div>
+
+            <span class="eyebrow">
+                FIELD OPERATIONS
+            </span>
+
+            <h2>
+                Contractor Work Center
+            </h2>
+
+            <p>
+                Manage assigned municipal road-repair work orders.
+            </p>
+
+        </div>
+
+    </div>
+
+
+    <div class="stats-grid">
+
+        <div class="stat-card">
+            <h3 id="contractor-assigned-count">
+                1
+            </h3>
+            <p>Assigned</p>
+        </div>
+
+        <div class="stat-card warning-card">
+            <h3>
+                1
+            </h3>
+            <p>In Progress</p>
+        </div>
+
+        <div class="stat-card success-card">
+            <h3>
+                4
+            </h3>
+            <p>Completed</p>
+        </div>
+
+    </div>
+
+
+    <h3 class="section-heading">
+        Assigned Work Orders
+    </h3>
+
+
+    <div
+        id="contractor-work-orders"
+        class="work-order-list"
+    ></div>
+
+</section>
+
+
+
+<!-- =====================================================
+     WORK ORDER DETAILS
+===================================================== -->
+
+<section id="view-work-order" class="view hidden">
+
+    <button
+        class="btn-text dark-text"
+        onclick="showView('view-contractor-dash')"
+    >
+        ← Back
+    </button>
+
+
+    <div
+        id="work-order-details"
+        class="work-order-detail"
+    ></div>
+
+</section>
+
+
+</main>
+
+
+<!-- Leaflet -->
+
+<script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
+</script>
+
+<script src="script.js"></script>
+
 </body>
 </html>
