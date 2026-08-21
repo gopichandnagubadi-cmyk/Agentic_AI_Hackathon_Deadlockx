@@ -2,6 +2,6 @@
 
 Batch-number 50
 
-gopi manchi baludu ani vaadi opinion
+gopi manchi baludu
 
-bokkale
+leela good boy
