@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CityFix — Sign In</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --asphalt: #1C1E1F;
+    --asphalt-2: #26292A;
+    --yellow: #F2B705;
+    --blue: #2F6FED;
+    --concrete: #EDEAE2;
+    --concrete-dim: #D9D5CA;
+    --grey: #8A8782;
+    --ink: #17181A;
+  }
+  *{ box-sizing: border-box; margin:0; padding:0; }
+  html,body{ height:100%; }
+  body{
+    font-family:'IBM Plex Sans', sans-serif;
+    background: var(--concrete);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap{
+    display:flex;
+    min-height:100vh;
+    width:100%;
+  }
+
+  /* ---------- FORM PANEL (full width) ---------- */
+  .panel-right{
+    flex:1;
+    background: var(--concrete);
+    color: var(--ink);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding: 48px;
+  }
+  .form-card{
+    width:100%;
+    max-width: 380px;
+  }
+
+  .project-name{
+    font-family:'Oswald', sans-serif;
+    font-weight:700;
+    font-size:22px;
+    text-transform:uppercase;
+    letter-spacing:0.02em;
+    color: var(--ink);
+    margin-bottom: 28px;
+  }
+  .project-name span{ color: var(--blue); }
+
+  .form-head h2{
+    font-family:'Oswald', sans-serif;
+    font-weight:600;
+    font-size:28px;
+    text-transform:uppercase;
+    letter-spacing:-0.01em;
+  }
+  .form-head p{
+    font-size:13px; color:#6B6862; margin-top:6px;
+  }
+
+  /* role toggle */
+  .role-toggle{
+    display:flex;
+    margin-top:26px;
+    border:1px solid #C8C4B8;
+    border-radius:2px;
+    overflow:hidden;
+  }
+  .role-toggle button{
+    flex:1;
+    padding:10px 0;
+    font-family:'IBM Plex Sans', sans-serif;
+    font-size:12px;
+    font-weight:600;
+    letter-spacing:0.04em;
+    text-transform:uppercase;
+    background: transparent;
+    color:#6B6862;
+    border:none;
+    cursor:pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .role-toggle button.active{
+    background: var(--ink);
+    color: var(--concrete);
+  }
+  .role-toggle button:not(.active):hover{
+    background: rgba(0,0,0,0.05);
+  }
+  .role-toggle button:focus-visible{
+    outline: 2px solid var(--blue);
+    outline-offset: -2px;
+  }
+
+  form{ margin-top: 24px; display:flex; flex-direction:column; gap:16px; }
+  .field label{
+    display:block;
+    font-size:11px;
+    font-weight:600;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:#6B6862;
+    margin-bottom:6px;
+  }
+  .field input{
+    width:100%;
+    padding: 11px 12px;
+    font-family:'IBM Plex Sans', sans-serif;
+    font-size:14px;
+    color: var(--ink);
+    background:#fff;
+    border:1px solid #C8C4B8;
+    border-radius:2px;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .field input:focus{
+    outline:none;
+    border-color: var(--blue);
+    box-shadow: 0 0 0 3px rgba(47,111,237,0.15);
+  }
+  .field input::placeholder{ color:#B3AFA4; }
+
+  .row-between{
+    display:flex; align-items:center; justify-content:space-between;
+    font-size:12.5px;
+  }
+  .remember{ display:flex; align-items:center; gap:7px; color:#6B6862; }
+  .remember input{ accent-color: var(--blue); }
+  .forgot{ color: var(--blue); text-decoration:none; font-weight:500; }
+  .forgot:hover{ text-decoration:underline; }
+
+  .btn-primary{
+    margin-top: 6px;
+    padding: 13px 0;
+    background: var(--yellow);
+    color: var(--ink);
+    border:none;
+    border-radius:2px;
+    font-family:'IBM Plex Sans', sans-serif;
+    font-weight:600;
+    font-size:14px;
+    letter-spacing:0.02em;
+    cursor:pointer;
+    transition: filter 0.15s ease, transform 0.1s ease;
+  }
+  .btn-primary:hover{ filter: brightness(1.06); }
+  .btn-primary:active{ transform: translateY(1px); }
+  .btn-primary:focus-visible{
+    outline: 2px solid var(--blue); outline-offset: 2px;
+  }
+
+  .divider{
+    display:flex; align-items:center; gap:12px;
+    margin: 22px 0 4px;
+    font-size:11px; color:#A6A296; text-transform:uppercase; letter-spacing:0.08em;
+  }
+  .divider::before, .divider::after{
+    content:""; flex:1; height:1px; background:#D6D2C6;
+  }
+
+  .anon-report{
+    display:block;
+    text-align:center;
+    padding: 11px 0;
+    border:1px solid #C8C4B8;
+    border-radius:2px;
+    font-size:13px;
+    font-weight:600;
+    color: var(--ink);
+    text-decoration:none;
+    background:#fff;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .anon-report:hover{ border-color: var(--ink); background:#F5F3ED; }
+
+  .signup-line{
+    text-align:center;
+    font-size:12.5px;
+    color:#6B6862;
+    margin-top:22px;
+  }
+  .signup-line a{ color: var(--blue); font-weight:600; text-decoration:none; }
+  .signup-line a:hover{ text-decoration:underline; }
+
+  .status-msg{
+    display:none;
+    font-size:12px;
+    padding:9px 12px;
+    border-radius:2px;
+    background:#FDEDED;
+    color:#A32E2E;
+    border:1px solid #F2C6C6;
+  }
+  .status-msg.show{ display:block; }
+
+  @media (max-width: 480px){
+    .panel-right{ padding: 36px 24px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="panel-right">
+    <div class="form-card">
+      <div class="project-name">City<span>Fix</span></div>
+      <div class="form-head">
+        <h2>Sign in</h2>
+        <p>Access your reports, or manage the maintenance queue.</p>
+      </div>
+
+      <div class="role-toggle" role="tablist" aria-label="Account type">
+        <button type="button" class="active" id="tab-citizen" role="tab" aria-selected="true">Citizen</button>
+        <button type="button" id="tab-staff" role="tab" aria-selected="false">Municipal Staff</button>
+      </div>
+
+      <div class="status-msg" id="status-msg">Enter both your email and password to continue.</div>
+
+      <form id="login-form" novalidate>
+        <div class="field">
+          <label for="email">Email</label>
+          <input type="email" id="email" placeholder="you@example.com" autocomplete="username">
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <input type="password" id="password" placeholder="••••••••" autocomplete="current-password">
+        </div>
+
+        <div class="row-between">
+          <label class="remember"><input type="checkbox"> Remember me</label>
+          <a href="#" class="forgot">Forgot password?</a>
+        </div>
+
+        <button type="submit" class="btn-primary" id="signin-btn">Sign in as Citizen</button>
+      </form>
+
+      <div class="divider">Or</div>
+      <a href="#" class="anon-report" id="anon-link">Report a defect anonymously</a>
+
+      <p class="signup-line" id="signup-line">New here? <a href="#">Create a citizen account</a></p>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Role toggle
+  const tabCitizen = document.getElementById('tab-citizen');
+  const tabStaff = document.getElementById('tab-staff');
+  const signinBtn = document.getElementById('signin-btn');
+  const anonLink = document.getElementById('anon-link');
+  const signupLine = document.getElementById('signup-line');
+
+  function setRole(role){
+    const isCitizen = role === 'citizen';
+    tabCitizen.classList.toggle('active', isCitizen);
+    tabStaff.classList.toggle('active', !isCitizen);
+    tabCitizen.setAttribute('aria-selected', isCitizen);
+    tabStaff.setAttribute('aria-selected', !isCitizen);
+    signinBtn.textContent = isCitizen ? 'Sign in as Citizen' : 'Sign in as Municipal Staff';
+    anonLink.style.display = isCitizen ? 'block' : 'none';
+    signupLine.style.display = isCitizen ? 'block' : 'none';
+  }
+  tabCitizen.addEventListener('click', () => setRole('citizen'));
+  tabStaff.addEventListener('click', () => setRole('staff'));
+
+  // Basic front-end validation (visual only — no backend wired up)
+  const form = document.getElementById('login-form');
+  const statusMsg = document.getElementById('status-msg');
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value.trim();
+    if (!email || !password){
+      statusMsg.classList.add('show');
+      return;
+    }
+    statusMsg.classList.remove('show');
+    signinBtn.textContent = 'Signing in…';
+    setTimeout(() => { signinBtn.textContent = tabCitizen.classList.contains('active') ? 'Sign in as Citizen' : 'Sign in as Municipal Staff'; }, 900);
+  });
+</script>
+
+</body>
+</html>
