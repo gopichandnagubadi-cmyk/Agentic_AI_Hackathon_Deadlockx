@@ -784,6 +784,62 @@ textarea {
     border-radius: 9px;
 }
 
+.dashboard-section,
+.location-info-panel,
+.verification-panel {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 10px;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+
+.section-header,
+.location-info-grid,
+.work-order-details,
+.verification-actions {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.location-info-grid,
+.work-order-details {
+    margin-top: 1rem;
+}
+
+.location-info-grid > div,
+.work-order-details > div {
+    flex: 1 1 180px;
+}
+
+.location-info-grid span,
+.work-order-details span {
+    display: block;
+    color: var(--muted);
+    font-size: 0.8rem;
+}
+
+.repair-image {
+    width: 100%;
+    min-height: 220px;
+    object-fit: cover;
+    border-radius: 8px;
+    background: var(--bg);
+}
+
+.upload-evidence {
+    position: relative;
+    overflow: hidden;
+}
+
+.upload-evidence input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
 
 /* =========================
    TABLE
@@ -991,6 +1047,12 @@ th {
         flex-direction: column;
         align-items: flex-start;
         gap: 0.5rem;
+    }
+
+    .dashboard-section,
+    .location-info-panel,
+    .verification-panel {
+        padding: 1rem;
     }
 
 }

@@ -73,31 +73,6 @@
 
                 <div class="form-group">
 
-                    <label for="login-role">
-                        Prototype Role
-                    </label>
-
-                    <select id="login-role">
-
-                        <option value="citizen">
-                            Citizen
-                        </option>
-
-                        <option value="officer">
-                            Municipal Officer
-                        </option>
-
-                        <option value="contractor">
-                            Contractor
-                        </option>
-
-                    </select>
-
-                </div>
-
-
-                <div class="form-group">
-
                     <label for="login-email">
                         Email
                     </label>
@@ -161,7 +136,7 @@
 
                 <button
                     class="btn-cta"
-                    onclick="showView('view-report-wizard')"
+                    onclick="resetReport(); showView('view-report-wizard')"
                 >
                     + Report Road Problem
                 </button>
@@ -744,7 +719,7 @@
                             Defect Type
                         </span>
 
-                        <strong>
+                        <strong id="result-defect-type">
                             Pothole
                         </strong>
 
@@ -757,7 +732,7 @@
                             Confidence
                         </span>
 
-                        <strong>
+                        <strong id="result-confidence">
                             94%
                         </strong>
 
@@ -770,7 +745,7 @@
                             Severity
                         </span>
 
-                        <strong class="text-danger">
+                        <strong id="result-severity" class="text-danger">
                             HIGH
                         </strong>
 
@@ -826,7 +801,7 @@
                             Drainage Nearby
                         </span>
 
-                        <strong>
+                        <strong id="result-drainage">
                             YES — 42 m
                         </strong>
 
@@ -839,7 +814,7 @@
                             Historical Waterlogging
                         </span>
 
-                        <strong>
+                        <strong id="result-water-risk">
                             HIGH
                         </strong>
 
@@ -876,20 +851,20 @@
                     <div class="risk-scenario">
 
                         <button
-                            onclick="updateFutureRisk('normal')"
+                            onclick="updateFutureRisk('normal', event)"
                         >
                             Normal Rain
                         </button>
 
                         <button
                             class="active"
-                            onclick="updateFutureRisk('heavy')"
+                            onclick="updateFutureRisk('heavy', event)"
                         >
                             Heavy Rain
                         </button>
 
                         <button
-                            onclick="updateFutureRisk('extreme')"
+                            onclick="updateFutureRisk('extreme', event)"
                         >
                             Extreme Rain
                         </button>
@@ -923,7 +898,7 @@
 
                 <h3>
                     Maintenance Priority:
-                    <span id="priority-score">
+                        <span id="priority-score">
                         87/100
                     </span>
                 </h3>
@@ -968,10 +943,12 @@
 
             </div>
 
+            <div id="result-location" class="location-result"></div>
+
 
             <button
                 class="btn-primary full-width mt-2"
-                onclick="showView('view-citizen-dash')"
+                onclick="resetReport(); showView('view-citizen-dash')"
             >
                 Finish & Track Progress
             </button>
@@ -1011,7 +988,7 @@
 
                 <div class="stat-card">
 
-                    <h3>
+                    <h3 id="officer-total-count">
                         24
                     </h3>
 
@@ -1024,7 +1001,7 @@
 
                 <div class="stat-card danger">
 
-                    <h3>
+                    <h3 id="officer-high-risk-count">
                         7
                     </h3>
 
@@ -1037,7 +1014,7 @@
 
                 <div class="stat-card">
 
-                    <h3>
+                    <h3 id="officer-water-risk-count">
                         5
                     </h3>
 
@@ -1050,7 +1027,7 @@
 
                 <div class="stat-card">
 
-                    <h3>
+                    <h3 id="officer-work-order-count">
                         8
                     </h3>
 
@@ -1283,7 +1260,7 @@
                 <div class="stat-card">
 
                     <h3 id="contractor-assigned">
-                        4
+                        0
                     </h3>
 
                     <p>
@@ -1296,7 +1273,7 @@
                 <div class="stat-card">
 
                     <h3 id="contractor-progress">
-                        2
+                        0
                     </h3>
 
                     <p>
@@ -1309,7 +1286,7 @@
                 <div class="stat-card">
 
                     <h3 id="contractor-completed">
-                        8
+                        0
                     </h3>
 
                     <p>
@@ -1327,162 +1304,7 @@
                 id="contractor-work-orders"
                 class="work-order-list"
             >
-
-                <div class="work-order-card">
-
-                    <div class="work-order-header">
-
-                        <div>
-
-                            <span class="work-order-id">
-                                WO-102
-                            </span>
-
-                            <h3>
-                                Pothole Repair
-                            </h3>
-
-                        </div>
-
-                        <span class="status-badge danger">
-                            CRITICAL
-                        </span>
-
-                    </div>
-
-
-                    <div class="work-order-details">
-
-                        <div>
-
-                            <span>
-                                Location
-                            </span>
-
-                            <strong>
-                                Ward 12
-                            </strong>
-
-                        </div>
-
-
-                        <div>
-
-                            <span>
-                                City
-                            </span>
-
-                            <strong>
-                                Guntur
-                            </strong>
-
-                        </div>
-
-
-                        <div>
-
-                            <span>
-                                Priority
-                            </span>
-
-                            <strong>
-                                87/100
-                            </strong>
-
-                        </div>
-
-
-                        <div>
-
-                            <span>
-                                Defect
-                            </span>
-
-                            <strong>
-                                High Severity Pothole
-                            </strong>
-
-                        </div>
-
-                    </div>
-
-
-                    <div class="work-order-actions">
-
-                        <button
-                            class="btn-secondary"
-                            onclick="acceptWorkOrder('WO-102')"
-                        >
-                            Accept Work
-                        </button>
-
-
-                        <button
-                            class="btn-primary"
-                            onclick="startWorkOrder('WO-102')"
-                        >
-                            Start Work
-                        </button>
-
-
-                        <label class="btn-outline upload-evidence">
-
-                            Upload Repair Evidence
-
-                            <input
-                                type="file"
-                                accept="image/*"
-                                onchange="uploadRepairEvidence(event,'WO-102')"
-                            >
-
-                        </label>
-
-
-                        <button
-                            class="btn-cta"
-                            onclick="completeWorkOrder('WO-102')"
-                        >
-                            Mark Completed
-                        </button>
-
-                    </div>
-
-
-                    <div class="work-order-note">
-
-                        Contractor responsibility:
-
-                        <ul>
-
-                            <li>
-                                Accept assigned municipal work order.
-                            </li>
-
-                            <li>
-                                Review defect location and repair requirements.
-                            </li>
-
-                            <li>
-                                Perform the assigned road/drainage repair.
-                            </li>
-
-                            <li>
-                                Upload before/after repair evidence.
-                            </li>
-
-                            <li>
-                                Mark the work as completed.
-                            </li>
-
-                            <li>
-                                Wait for municipal officer verification.
-                            </li>
-
-                        </ul>
-
-                    </div>
-
-                </div>
+                <p>Loading assigned work orders...</p>
 
             </div>
 
