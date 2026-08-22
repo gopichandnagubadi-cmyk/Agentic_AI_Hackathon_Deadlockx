@@ -84,6 +84,11 @@ alter table public.complaints add column if not exists status text default 'Repo
 alter table public.complaints add column if not exists created_at timestamptz default now();
 alter table public.complaints add column if not exists defect_type text;
 alter table public.complaints add column if not exists severity text;
+alter table public.complaints add column if not exists estimated_size_m2 double precision;
+alter table public.complaints add column if not exists approximate_depth_cm double precision;
+alter table public.complaints add column if not exists locality text;
+alter table public.complaints add column if not exists city text;
+alter table public.complaints add column if not exists state text;
 alter table public.complaints add column if not exists priority integer;
 alter table public.complaints add column if not exists water_risk text;
 alter table public.complaints add column if not exists drainage_nearby boolean;
@@ -504,13 +509,17 @@ $$;
 revoke all on function public.transition_complaint(text, text) from public;
 grant execute on function public.transition_complaint(text, text) to authenticated;
 
+drop function if exists public.save_complaint_analysis(text, text, text, integer, text, boolean);
+
 create or replace function public.save_complaint_analysis(
     target_complaint_id text,
     target_defect_type text,
     target_severity text,
     target_priority integer,
     target_water_risk text,
-    target_drainage_nearby boolean
+    target_drainage_nearby boolean,
+    target_estimated_size_m2 double precision,
+    target_approximate_depth_cm double precision
 )
 returns public.complaints
 language plpgsql
@@ -562,6 +571,8 @@ begin
     update public.complaints
     set defect_type = target_defect_type,
         severity = target_severity,
+        estimated_size_m2 = target_estimated_size_m2,
+        approximate_depth_cm = target_approximate_depth_cm,
         priority = calculated_priority,
         water_risk = nearby_water_risk,
         drainage_nearby = nearest_distance <= 250,
@@ -584,8 +595,8 @@ begin
 end;
 $$;
 
-revoke all on function public.save_complaint_analysis(text, text, text, integer, text, boolean) from public;
-grant execute on function public.save_complaint_analysis(text, text, text, integer, text, boolean) to authenticated;
+revoke all on function public.save_complaint_analysis(text, text, text, integer, text, boolean, double precision, double precision) from public;
+grant execute on function public.save_complaint_analysis(text, text, text, integer, text, boolean, double precision, double precision) to authenticated;
 
 create or replace function public.prepare_complaint_for_review(
     target_complaint_id text

@@ -64,6 +64,22 @@ const locationNameCache = new Map();
 let verificationWorkOrderId = null;
 let repairCaptureState = {};
 
+async function resolveLocationName(latitude, longitude) {
+    const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(latitude)}&lon=${encodeURIComponent(longitude)}`,
+        { headers: { Accept: "application/json" } }
+    );
+
+    if (!response.ok) throw new Error("Location lookup failed");
+
+    const address = (await response.json()).address || {};
+    return {
+        locality: address.suburb || address.neighbourhood || address.village || address.town || "Unavailable",
+        city: address.city || address.town || address.village || address.municipality || "Unavailable",
+        state: address.state || "Unavailable"
+    };
+}
+
 function resetReport() {
 
     currentReport = {
@@ -72,12 +88,16 @@ function resetReport() {
         imageFile: null,
         coords: null,
         notes: "",
+        locality: null,
         city: null,
+        state: null,
         defectType: null,
         severity: null,
         priority: null,
         waterRisk: null,
         drainageNearby: null,
+        estimatedSize: null,
+        approximateDepth: null,
         timestamp: null
     };
 
@@ -147,6 +167,12 @@ async function saveComplaintToSupabase() {
         longitude: currentReport.coords.longitude,
 
         accuracy: currentReport.coords.accuracy,
+
+        locality: currentReport.locality,
+
+        city: currentReport.city,
+
+        state: currentReport.state,
 
         notes: currentReport.notes,
 
@@ -517,6 +543,10 @@ let currentReport = {
 
     city: null,
 
+    locality: null,
+
+    state: null,
+
     defectType: null,
 
     severity: null,
@@ -526,6 +556,10 @@ let currentReport = {
     waterRisk: null,
 
     drainageNearby: null,
+
+    estimatedSize: null,
+
+    approximateDepth: null,
 
     timestamp: null
 };
@@ -1463,9 +1497,7 @@ function validateStep() {
     }
 
 
-    button.disabled =
-        !currentReport.image ||
-        !currentReport.coords;
+    button.disabled = !currentReport.image || !currentReport.coords;
 }
 
 
@@ -1481,10 +1513,57 @@ function collectReportDetails() {
         );
 
 
+
     currentReport.notes =
         notes
             ? notes.value.trim()
             : "";
+}
+
+
+async function estimateImageMeasurements(imageSource) {
+    const image = new Image();
+    image.src = imageSource;
+    await new Promise((resolve, reject) => {
+        image.onload = resolve;
+        image.onerror = reject;
+    });
+
+    const canvas = document.createElement("canvas");
+    const sampleSize = 160;
+    canvas.width = sampleSize;
+    canvas.height = sampleSize;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    context.drawImage(image, 0, 0, sampleSize, sampleSize);
+
+    const pixels = context.getImageData(0, 0, sampleSize, sampleSize).data;
+    let darkPixels = 0;
+    let totalBrightness = 0;
+    let totalBrightnessSquared = 0;
+
+    for (let index = 0; index < pixels.length; index += 4) {
+        const brightness = (pixels[index] + pixels[index + 1] + pixels[index + 2]) / 3;
+        totalBrightness += brightness;
+        totalBrightnessSquared += brightness * brightness;
+        if (brightness < 95) darkPixels += 1;
+    }
+
+    const pixelCount = pixels.length / 4;
+    const darkRatio = darkPixels / pixelCount;
+    const averageBrightness = totalBrightness / pixelCount;
+    const variance = Math.max(0, totalBrightnessSquared / pixelCount - averageBrightness ** 2);
+    const contrast = Math.sqrt(variance);
+
+    // A photo has no physical scale, so these values are deliberately approximate.
+    currentReport.estimatedSize = Number(Math.min(6, Math.max(0.2, darkRatio * 8)).toFixed(2));
+    currentReport.approximateDepth = Number(Math.min(30, Math.max(2, darkRatio * 24 + contrast / 18)).toFixed(1));
+}
+
+
+function calculateAutomatedSeverity(size, depth) {
+    if (size >= 2 || depth >= 15) return "High";
+    if (size >= 0.5 || depth >= 8) return "Medium";
+    return "Low";
 }
 
 
@@ -1508,14 +1587,7 @@ function generateComplaintId() {
 // ======================================================
 
 async function runAnalysisSequence() {
-    const saved = await saveComplaintToSupabase();
-
-    if (!saved) {
-        return;
-    }
-
     collectReportDetails();
-
 
     if (
         !currentReport.image ||
@@ -1526,6 +1598,35 @@ async function runAnalysisSequence() {
             "Please provide an image and location."
         );
 
+        return;
+    }
+
+    try {
+        try {
+            const place = await resolveLocationName(
+                currentReport.coords.latitude,
+                currentReport.coords.longitude
+            );
+            currentReport.locality = place.locality;
+            currentReport.city = place.city;
+            currentReport.state = place.state;
+        } catch (error) {
+            console.warn("Location name lookup failed:", error);
+            currentReport.locality = "Unavailable";
+            currentReport.city = "Unavailable";
+            currentReport.state = "Unavailable";
+        }
+
+        await estimateImageMeasurements(currentReport.image);
+    } catch (error) {
+        console.error("Image measurement analysis failed:", error);
+        alert("Unable to analyze the image. Please capture or upload it again.");
+        return;
+    }
+
+    const saved = await saveComplaintToSupabase();
+
+    if (!saved) {
         return;
     }
 
@@ -1589,8 +1690,10 @@ async function finalizeAnalysis() {
     currentReport.defectType =
         "Pothole";
 
-    currentReport.severity =
-        "High";
+    currentReport.severity = calculateAutomatedSeverity(
+        currentReport.estimatedSize,
+        currentReport.approximateDepth
+    );
 
     const { data: analysis, error } = await supabaseClient.rpc(
         "save_complaint_analysis",
@@ -1600,7 +1703,9 @@ async function finalizeAnalysis() {
             target_severity: currentReport.severity,
             target_priority: null,
             target_water_risk: currentReport.waterRisk,
-            target_drainage_nearby: null
+            target_drainage_nearby: null,
+            target_estimated_size_m2: currentReport.estimatedSize,
+            target_approximate_depth_cm: currentReport.approximateDepth
         }
     );
 
@@ -1632,6 +1737,8 @@ async function finalizeAnalysis() {
     document.getElementById("result-defect-type").innerText = currentReport.defectType;
     document.getElementById("result-confidence").innerText = "Prototype estimate";
     document.getElementById("result-severity").innerText = currentReport.severity.toUpperCase();
+    document.getElementById("result-estimated-size").innerText = `${currentReport.estimatedSize.toFixed(2)} m²`;
+    document.getElementById("result-approximate-depth").innerText = `${currentReport.approximateDepth.toFixed(1)} cm`;
     document.getElementById("result-water-risk").innerText = currentReport.waterRisk.toUpperCase();
     document.getElementById("result-drainage").innerText = currentReport.drainageNearby
         ? `YES — ${Math.round(analysis.nearest_drainage_distance_m)} m`
@@ -1689,6 +1796,21 @@ function updateResultLocation() {
 
         Longitude:
         ${coords.longitude.toFixed(6)}
+
+        <br>
+
+        Locality:
+        ${currentReport.locality || "Unavailable"}
+
+        <br>
+
+        City:
+        ${currentReport.city || "Unavailable"}
+
+        <br>
+
+        State:
+        ${currentReport.state || "Unavailable"}
 
         <br>
 
