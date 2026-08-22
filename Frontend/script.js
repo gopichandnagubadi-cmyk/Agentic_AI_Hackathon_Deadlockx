@@ -584,6 +584,7 @@ let currentLocationMarker = null;
 
 function showView(viewId) {
 
+    document.body.classList.toggle("login-page", viewId === "view-login");
     const allowedViews = {
         "view-citizen-dash": "citizen",
         "view-report-wizard": "citizen",
