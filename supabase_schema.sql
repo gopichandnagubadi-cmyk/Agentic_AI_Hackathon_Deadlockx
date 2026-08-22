@@ -1,5 +1,23 @@
 create extension if not exists pgcrypto;
 
+-- Remove unused duplicate tables from older schema versions. The application
+-- uses the canonical tables documented below instead.
+drop table if exists public.complaint_status_history cascade;
+drop table if exists public.drainage_points cascade;
+drop table if exists public.repair_evidence cascade;
+drop table if exists public.road_segments cascade;
+drop table if exists public.waterlogging_hotspots cascade;
+drop table if exists public.contractors cascade;
+drop table if exists public.defects cascade;
+
+-- Canonical application tables:
+-- profiles            -> users and contractors, selected by role
+-- complaints         -> reported road defects
+-- work_orders        -> assignments and before/after repair evidence paths
+-- status_history     -> complaint and work-order lifecycle history
+-- drainage           -> drainage points used for spatial risk checks
+-- waterlogging       -> waterlogging hotspots used for spatial risk checks
+
 create table if not exists public.profiles (
     id uuid primary key references auth.users(id) on delete cascade,
     role text not null default 'citizen' check (role in ('citizen', 'officer', 'contractor')),
