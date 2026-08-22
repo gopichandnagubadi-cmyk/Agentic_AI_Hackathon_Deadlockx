@@ -871,7 +871,7 @@ begin
     where complaint_id = (select complaint_id from public.work_orders where id = target_work_order_id)
     for update;
 
-    if complaint_status <> 'Work Order Created' then
+    if complaint_status not in ('Work Order Created', 'Contractor Assigned', 'Reopened') then
         raise exception 'Complaint is not ready for contractor assignment';
     end if;
 

@@ -308,13 +308,26 @@
                         </button>
 
 
-                        <div class="upload-btn-wrapper">
+                        <button
+                            id="btn-close-camera"
+                            class="btn-outline hidden"
+                            onclick="closeCamera()"
+                        >
+                            Close Camera
+                        </button>
+
+
+                        <div
+                            id="upload-gallery-wrapper"
+                            class="upload-btn-wrapper"
+                        >
 
                             <button class="btn-outline">
                                 Upload Gallery
                             </button>
 
                             <input
+                                id="upload-gallery-input"
                                 type="file"
                                 accept="image/*"
                                 capture="environment"
@@ -1035,6 +1048,26 @@
                         Active Work Orders
                     </p>
 
+                </div>
+
+                <div class="stat-card">
+                    <h3 id="officer-assigned-count">0</h3>
+                    <p>Assigned Pothole Work</p>
+                </div>
+
+                <div class="stat-card">
+                    <h3 id="officer-in-progress-count">0</h3>
+                    <p>Active Repairs</p>
+                </div>
+
+                <div class="stat-card">
+                    <h3 id="officer-finished-count">0</h3>
+                    <p>Finished Potholes</p>
+                </div>
+
+                <div class="stat-card">
+                    <h3 id="officer-approved-count">0</h3>
+                    <p>Approved and Closed</p>
                 </div>
 
             </div>

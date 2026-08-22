@@ -84,6 +84,8 @@ function resetReport() {
     const preview = document.getElementById("photo-preview");
     const placeholder = document.getElementById("camera-placeholder");
     const notes = document.getElementById("report-notes");
+    const galleryInput = document.getElementById("upload-gallery-input");
+    const galleryWrapper = document.getElementById("upload-gallery-wrapper");
 
     if (preview) {
         preview.src = "";
@@ -92,6 +94,8 @@ function resetReport() {
 
     if (placeholder) placeholder.classList.remove("hidden");
     if (notes) notes.value = "";
+    if (galleryInput) galleryInput.disabled = false;
+    if (galleryWrapper) galleryWrapper.classList.remove("disabled");
 
     document.getElementById("image-check").innerText = "Not captured";
     document.getElementById("location-check").innerText = "Required";
@@ -709,6 +713,15 @@ async function startCamera() {
     const captureButton =
         document.getElementById("btn-capture");
 
+    const closeButton =
+        document.getElementById("btn-close-camera");
+
+    const galleryInput =
+        document.getElementById("upload-gallery-input");
+
+    const galleryWrapper =
+        document.getElementById("upload-gallery-wrapper");
+
 
     if (!navigator.mediaDevices ||
         !navigator.mediaDevices.getUserMedia) {
@@ -747,6 +760,11 @@ async function startCamera() {
 
         captureButton.classList.remove("hidden");
 
+        closeButton.classList.remove("hidden");
+
+        galleryInput.disabled = true;
+        galleryWrapper.classList.add("disabled");
+
 
     } catch (error) {
 
@@ -768,15 +786,39 @@ async function startCamera() {
 
 function stopCamera() {
 
-    if (!videoStream) {
-        return;
+    if (videoStream) {
+        videoStream
+            .getTracks()
+            .forEach(track => track.stop());
+
+        videoStream = null;
     }
 
-    videoStream
-        .getTracks()
-        .forEach(track => track.stop());
+    const video = document.getElementById("camera-stream");
+    if (video) video.srcObject = null;
+}
 
-    videoStream = null;
+
+function closeCamera() {
+
+    stopCamera();
+
+    const video = document.getElementById("camera-stream");
+    const placeholder = document.getElementById("camera-placeholder");
+    const openButton = document.getElementById("btn-open-camera");
+    const captureButton = document.getElementById("btn-capture");
+    const closeButton = document.getElementById("btn-close-camera");
+    const galleryInput = document.getElementById("upload-gallery-input");
+    const galleryWrapper = document.getElementById("upload-gallery-wrapper");
+
+    if (video) video.classList.add("hidden");
+    if (placeholder) placeholder.classList.remove("hidden");
+    if (openButton) openButton.classList.remove("hidden");
+    if (captureButton) captureButton.classList.add("hidden");
+    if (closeButton) closeButton.classList.add("hidden");
+    if (galleryInput) galleryInput.disabled = false;
+    if (galleryWrapper) galleryWrapper.classList.remove("disabled");
+
 }
 
 
@@ -862,6 +904,18 @@ function capturePhoto() {
         .getElementById("btn-capture")
         .classList.add("hidden");
 
+    document
+        .getElementById("btn-close-camera")
+        .classList.add("hidden");
+
+    document
+        .getElementById("upload-gallery-input")
+        .removeAttribute("disabled");
+
+    document
+        .getElementById("upload-gallery-wrapper")
+        .classList.remove("disabled");
+
 
     validateStep();
 }
@@ -889,6 +943,8 @@ function handleUpload(event) {
 
         return;
     }
+
+    closeCamera();
 
 
     currentReport.imageFile =
@@ -1815,6 +1871,18 @@ async function initOfficerDashboard() {
     document.getElementById("officer-work-order-count").innerText = databaseWorkOrders.filter(item =>
         !["Closed", "Rejected"].includes(item.status)
     ).length;
+    document.getElementById("officer-assigned-count").innerText = databaseWorkOrders.filter(item =>
+        item.status === "Assigned"
+    ).length;
+    document.getElementById("officer-in-progress-count").innerText = databaseWorkOrders.filter(item =>
+        ["Accepted", "In Progress"].includes(item.status)
+    ).length;
+    document.getElementById("officer-finished-count").innerText = databaseWorkOrders.filter(item =>
+        item.status === "Completed Awaiting Verification"
+    ).length;
+    document.getElementById("officer-approved-count").innerText = databaseWorkOrders.filter(item =>
+        item.status === "Closed"
+    ).length;
 
     renderOfficerTable();
 
@@ -2283,18 +2351,18 @@ function renderOfficerActions(complaint) {
             </button>`;
     }
 
-    if (!workOrder.contractor_id || workOrder.status === "Assigned") {
+    if (!["Completed Awaiting Verification", "Closed"].includes(workOrder.status)) {
         const options = databaseContractors.map(contractor => `
-            <option value="${contractor.id}">${contractor.full_name || "Contractor"}</option>
+            <option value="${contractor.id}" ${contractor.id === workOrder.contractor_id ? "selected" : ""}>${contractor.full_name || "Contractor"}</option>
         `).join("");
 
         return `${reviewButton}
             <select id="contractor-${complaint.complaint_id}">
-                <option value="">Assign contractor</option>
+                <option value="">Select contractor</option>
                 ${options}
             </select>
             <button class="btn-primary" onclick="assignSelectedContractor('${complaint.complaint_id}')">
-                Assign Contractor
+                ${workOrder.contractor_id ? "Reassign Contractor" : "Assign Contractor"}
             </button>`;
     }
 
@@ -2527,11 +2595,14 @@ async function openVerification(workOrderId) {
 
     if (!workOrder) return;
 
-    const beforeUrl = await getEvidenceUrl(workOrder?.evidence_before_url);
+    const complaint = databaseComplaints.find(item => item.complaint_id === workOrder.complaint_id)
+        || workOrder.complaints;
+    const beforeUrl = await getEvidenceUrl(
+        workOrder?.evidence_before_url || complaint?.image_url
+    );
     const afterUrl = await getEvidenceUrl(workOrder?.evidence_after_url);
     document.getElementById("before-repair-image").src = beforeUrl || "";
     document.getElementById("after-repair-image").src = afterUrl || "";
-    const complaint = databaseComplaints.find(item => item.complaint_id === workOrder.complaint_id);
     document.getElementById("repair-coordinates").innerText = workOrder.repair_latitude
         ? `Complaint: ${formatCoordinate(complaint?.latitude)}, ${formatCoordinate(complaint?.longitude)} | Repair: ${formatCoordinate(workOrder.repair_latitude)}, ${formatCoordinate(workOrder.repair_longitude)} (±${Math.round(workOrder.repair_accuracy || 0)} m)`
         : `Complaint: ${formatCoordinate(complaint?.latitude)}, ${formatCoordinate(complaint?.longitude)} | Repair: Not captured`;
@@ -2669,7 +2740,7 @@ async function verifyRepair(
     );
 
     await initOfficerDashboard();
-    renderOfficerTable();
+    showView("view-officer-dash");
 }
 
 

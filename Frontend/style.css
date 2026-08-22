@@ -469,6 +469,11 @@ textarea {
     cursor: pointer;
 }
 
+.upload-btn-wrapper.disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
 
 /* =========================
    LOCATION
