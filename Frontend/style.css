@@ -1038,3 +1038,187 @@ th {
         width: 100%;
     }
 }
+/* =========================================================
+   LOGIN PAGE REDESIGN (APPEND AT THE END OF style.css)
+   This only affects #view-login
+========================================================= */
+
+/* Login background only */
+body.login-page{
+    background:
+        linear-gradient(rgba(5,15,35,.35), rgba(5,15,35,.45)),
+        url("bgimage.png") center/cover no-repeat fixed;
+    min-height:100vh;
+}
+
+/* Make login page fullscreen */
+body.login-page main{
+    max-width:none;
+    margin:0;
+    padding:0;
+}
+
+#view-login{
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:2rem;
+}
+
+/* Glass card */
+#view-login .login-card{
+    width:100%;
+    max-width:700px;
+    padding:3rem;
+    border-radius:28px;
+    background:rgba(255,255,255,.12);
+    backdrop-filter:blur(22px);
+    -webkit-backdrop-filter:blur(22px);
+    border:1px solid rgba(255,255,255,.35);
+    box-shadow:
+        0 30px 80px rgba(0,0,0,.35),
+        inset 0 1px 1px rgba(255,255,255,.25);
+    text-align:center;
+    position:relative;
+    overflow:hidden;
+}
+
+/* soft glow */
+#view-login .login-card::before{
+    content:"";
+    position:absolute;
+    inset:-30%;
+    background:radial-gradient(circle at top right,
+        rgba(255,255,255,.16),
+        transparent 60%);
+}
+
+/* road icon */
+#view-login .login-card::after{
+    content:"🛣️";
+    position:absolute;
+    top:38px;
+    left:50%;
+    transform:translateX(-50%);
+    width:90px;
+    height:90px;
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:2.1rem;
+    background:#14213d;
+    color:white;
+    border:3px solid rgba(255,255,255,.2);
+    box-shadow:
+        0 0 0 12px rgba(255,255,255,.05),
+        0 0 30px rgba(120,170,255,.45);
+}
+
+#view-login .login-card>*{
+    position:relative;
+    z-index:2;
+}
+
+/* title */
+#view-login h1{
+    margin-top:110px;
+    color:white;
+    font-size:2.35rem;
+}
+
+#view-login p:first-of-type{
+    color:rgba(255,255,255,.88);
+    font-size:1.1rem;
+    margin:.8rem 0 1.8rem;
+}
+
+#view-login p:first-of-type::after{
+    content:"──────── 🛣️ ────────";
+    display:block;
+    margin-top:1rem;
+    color:rgba(255,255,255,.45);
+}
+
+/* labels */
+#view-login label{
+    color:white;
+    font-size:.95rem;
+}
+
+/* inputs */
+#view-login input{
+    background:rgba(255,255,255,.08);
+    border:1px solid rgba(255,255,255,.22);
+    border-radius:14px;
+    color:white;
+    padding:1rem;
+}
+
+#view-login input::placeholder{
+    color:rgba(255,255,255,.55);
+}
+
+#view-login input:focus{
+    outline:none;
+    border-color:#7dafff;
+    background:rgba(255,255,255,.12);
+    box-shadow:0 0 20px rgba(66,133,244,.35);
+}
+
+/* button */
+#view-login .btn-primary{
+    margin-top:.7rem;
+    background:linear-gradient(135deg,#0f4ed8,#467bff);
+    border:1px solid rgba(255,255,255,.2);
+    border-radius:14px;
+    padding:1rem;
+    font-size:1.05rem;
+    font-weight:700;
+    box-shadow:0 12px 28px rgba(37,99,235,.35);
+}
+
+#view-login .btn-primary:hover{
+    background:linear-gradient(135deg,#0c42b8,#356cff);
+}
+
+/* footer */
+#view-login .note{
+    color:rgba(255,255,255,.72);
+    margin-top:1.4rem;
+}
+
+#view-login .note::before{
+    content:"────── 🛡️ Secured by Supabase ──────";
+    display:block;
+    margin-bottom:1rem;
+    color:rgba(255,255,255,.45);
+}
+
+/* mobile */
+@media(max-width:768px){
+
+    #view-login{
+        padding:1rem;
+    }
+
+    #view-login .login-card{
+        padding:2rem 1.4rem;
+    }
+
+    #view-login .login-card::after{
+        width:72px;
+        height:72px;
+        font-size:1.7rem;
+    }
+
+    #view-login h1{
+        margin-top:90px;
+        font-size:1.8rem;
+    }
+
+    #view-login p:first-of-type::after{
+        content:"── 🛣️ ──";
+    }
+}

@@ -2604,6 +2604,7 @@ async function logout() {
 ========================================================= */
 
 function showView(viewId) {
+     document.body.classList.toggle("login-page", viewId === "view-login");
 
     document
         .querySelectorAll(".view")
