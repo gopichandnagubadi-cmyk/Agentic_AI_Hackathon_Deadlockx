@@ -65,6 +65,11 @@ let verificationWorkOrderId = null;
 let repairCaptureState = {};
 
 async function resolveLocationName(latitude, longitude) {
+    const cacheKey = `${latitude},${longitude}`;
+    if (locationNameCache.has(cacheKey)) {
+        return locationNameCache.get(cacheKey);
+    }
+
     const response = await fetch(
         `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(latitude)}&lon=${encodeURIComponent(longitude)}`,
         { headers: { Accept: "application/json" } }
@@ -73,11 +78,45 @@ async function resolveLocationName(latitude, longitude) {
     if (!response.ok) throw new Error("Location lookup failed");
 
     const address = (await response.json()).address || {};
-    return {
-        locality: address.suburb || address.neighbourhood || address.village || address.town || "Unavailable",
-        city: address.city || address.town || address.village || address.municipality || "Unavailable",
+    const place = {
+        locality: address.suburb || address.neighbourhood || address.city_district || address.village || address.town || "Unavailable",
+        city: address.city || address.town || address.village || address.municipality || address.county || "Unavailable",
         state: address.state || "Unavailable"
     };
+
+    locationNameCache.set(cacheKey, place);
+    return place;
+}
+
+function renderLocationAddress() {
+    const addressElement = document.getElementById("location-address");
+    if (!addressElement) return;
+
+    addressElement.classList.remove("hidden");
+    document.getElementById("location-locality").innerText = currentReport.locality || "Looking up...";
+    document.getElementById("location-city").innerText = currentReport.city || "Looking up...";
+    document.getElementById("location-state").innerText = currentReport.state || "Looking up...";
+}
+
+async function updateLocationAddress(latitude, longitude) {
+    currentReport.locality = null;
+    currentReport.city = null;
+    currentReport.state = null;
+    renderLocationAddress();
+
+    try {
+        const place = await resolveLocationName(latitude, longitude);
+        currentReport.locality = place.locality;
+        currentReport.city = place.city;
+        currentReport.state = place.state;
+    } catch (error) {
+        console.warn("Location name lookup failed:", error);
+        currentReport.locality = "Unavailable";
+        currentReport.city = "Unavailable";
+        currentReport.state = "Unavailable";
+    }
+
+    renderLocationAddress();
 }
 
 function resetReport() {
@@ -106,6 +145,7 @@ function resetReport() {
     const notes = document.getElementById("report-notes");
     const galleryInput = document.getElementById("upload-gallery-input");
     const galleryWrapper = document.getElementById("upload-gallery-wrapper");
+    const addressElement = document.getElementById("location-address");
 
     if (preview) {
         preview.src = "";
@@ -116,6 +156,7 @@ function resetReport() {
     if (notes) notes.value = "";
     if (galleryInput) galleryInput.disabled = false;
     if (galleryWrapper) galleryWrapper.classList.remove("disabled");
+    if (addressElement) addressElement.classList.add("hidden");
 
     document.getElementById("image-check").innerText = "Not captured";
     document.getElementById("location-check").innerText = "Required";
@@ -264,7 +305,7 @@ async function loadComplaints() {
 
     const { data, error } = await supabaseClient
         .from("complaints")
-        .select("*")
+        .select("*, complaint_locations(locality, city, state)")
         .order("created_at", { ascending: false });
 
     if (error) {
@@ -293,6 +334,14 @@ async function enrichLocationName(complaint) {
 
     complaint.location_name = await locationNameCache.get(key);
     return complaint;
+}
+
+function getComplaintLocation(complaint) {
+    const relatedLocation = Array.isArray(complaint.complaint_locations)
+        ? complaint.complaint_locations[0]
+        : complaint.complaint_locations;
+
+    return relatedLocation || complaint;
 }
 
 async function loadWorkOrders() {
@@ -1176,6 +1225,8 @@ function handleGPSsuccess(position) {
         longitude
     );
 
+    updateLocationAddress(latitude, longitude);
+
 
     validateStep();
 }
@@ -1475,6 +1526,8 @@ function useManualLocation() {
         latitude,
         longitude
     );
+
+    updateLocationAddress(latitude, longitude);
 
 
     validateStep();
@@ -1963,6 +2016,12 @@ function renderCitizenHistory(complaints = databaseComplaints) {
                     </p>
 
                     <p>
+                        Location: ${getComplaintLocation(item).locality || "Unavailable"},
+                        ${getComplaintLocation(item).city || "Unavailable"},
+                        ${getComplaintLocation(item).state || "Unavailable"}
+                    </p>
+
+                    <p>
                         Status: ${item.status} · ${new Date(item.created_at).toLocaleString()}
                     </p>
 
@@ -2186,7 +2245,9 @@ function initOfficerMap() {
                 <br>
 
                 Location:
-                ${complaint.location_name || "Location name unavailable"}
+                ${getComplaintLocation(complaint).locality || "Unavailable"},
+                ${getComplaintLocation(complaint).city || "Unavailable"},
+                ${getComplaintLocation(complaint).state || "Unavailable"}
 
             `);
         }

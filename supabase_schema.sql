@@ -98,6 +98,47 @@ alter table public.complaints add column if not exists location_name text;
 alter table public.complaints add column if not exists analyzed_at timestamptz;
 alter table public.complaints add column if not exists updated_at timestamptz default now();
 
+create table if not exists public.complaint_locations (
+    complaint_id text primary key references public.complaints(complaint_id) on delete cascade,
+    locality text,
+    city text,
+    state text,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
+create or replace function public.sync_complaint_location()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+    insert into public.complaint_locations (complaint_id, locality, city, state)
+    values (new.complaint_id, new.locality, new.city, new.state)
+    on conflict (complaint_id) do update set
+        locality = excluded.locality,
+        city = excluded.city,
+        state = excluded.state,
+        updated_at = now();
+    return new;
+end;
+$$;
+
+drop trigger if exists complaints_sync_location on public.complaints;
+create trigger complaints_sync_location
+    after insert or update of complaint_id, locality, city, state on public.complaints
+    for each row execute procedure public.sync_complaint_location();
+
+insert into public.complaint_locations (complaint_id, locality, city, state)
+select complaint_id, locality, city, state
+from public.complaints
+where complaint_id is not null
+on conflict (complaint_id) do update set
+    locality = excluded.locality,
+    city = excluded.city,
+    state = excluded.state,
+    updated_at = now();
+
 create unique index if not exists complaints_complaint_id_key on public.complaints (complaint_id);
 
 create table if not exists public.work_orders (
@@ -324,6 +365,7 @@ alter table public.work_orders enable row level security;
 alter table public.drainage enable row level security;
 alter table public.waterlogging enable row level security;
 alter table public.status_history enable row level security;
+alter table public.complaint_locations enable row level security;
 
 insert into storage.buckets (id, name, public)
 values ('road-evidence', 'road-evidence', false)
@@ -357,6 +399,16 @@ with check (user_id = auth.uid());
 drop policy if exists complaints_update_access on public.complaints;
 create policy complaints_update_access on public.complaints for update to authenticated
 using (public.is_role('officer'));
+
+drop policy if exists complaint_locations_select_access on public.complaint_locations;
+create policy complaint_locations_select_access on public.complaint_locations for select to authenticated
+using (
+    exists (
+        select 1 from public.complaints
+        where complaints.complaint_id = complaint_locations.complaint_id
+        and (complaints.user_id = auth.uid() or public.is_role('officer'))
+    )
+);
 
 drop policy if exists work_orders_select_access on public.work_orders;
 create policy work_orders_select_access on public.work_orders for select to authenticated
