@@ -149,7 +149,7 @@
                 <div class="stat-card">
 
                     <h3 id="citizen-active-count">
-                        2
+                        0
                     </h3>
 
                     <p>
@@ -162,7 +162,7 @@
                 <div class="stat-card">
 
                     <h3 id="citizen-resolved-count">
-                        5
+                        0
                     </h3>
 
                     <p>
@@ -175,7 +175,7 @@
                 <div class="stat-card danger">
 
                     <h3>
-                        3
+                        0
                     </h3>
 
                     <p>
@@ -720,7 +720,7 @@
                         </span>
 
                         <strong id="result-defect-type">
-                            Pothole
+                            Pending analysis
                         </strong>
 
                     </div>
@@ -733,7 +733,7 @@
                         </span>
 
                         <strong id="result-confidence">
-                            94%
+                            Prototype estimate
                         </strong>
 
                     </div>
@@ -746,7 +746,7 @@
                         </span>
 
                         <strong id="result-severity" class="text-danger">
-                            HIGH
+                            Pending analysis
                         </strong>
 
                     </div>
@@ -759,7 +759,7 @@
                         </span>
 
                         <strong>
-                            Large
+                            Prototype estimate
                         </strong>
 
                     </div>
@@ -772,7 +772,7 @@
                         </span>
 
                         <strong>
-                            Moderate
+                            Prototype estimate
                         </strong>
 
                     </div>
@@ -802,7 +802,7 @@
                         </span>
 
                         <strong id="result-drainage">
-                            YES — 42 m
+                            Pending spatial analysis
                         </strong>
 
                     </div>
@@ -815,7 +815,7 @@
                         </span>
 
                         <strong id="result-water-risk">
-                            HIGH
+                            Pending spatial analysis
                         </strong>
 
                     </div>
@@ -828,7 +828,7 @@
                         </span>
 
                         <strong>
-                            DETECTED
+                            Pending spatial analysis
                         </strong>
 
                     </div>
@@ -877,14 +877,14 @@
                         <div
                             id="risk-bar"
                             class="risk-bar"
-                            style="width:85%;"
+                            style="width:0%;"
                         ></div>
 
                     </div>
 
 
                     <p id="risk-label">
-                        Scenario Risk: VERY HIGH
+                        Scenario risk is calculated from the selected scenario after analysis.
                     </p>
 
                 </div>
@@ -899,7 +899,7 @@
                 <h3>
                     Maintenance Priority:
                         <span id="priority-score">
-                        87/100
+                        Pending database calculation
                     </span>
                 </h3>
 
@@ -908,27 +908,27 @@
 
                     <div>
                         Defect Severity
-                        <strong>30/35</strong>
+                        <strong>Pending</strong>
                     </div>
 
                     <div>
                         Water Risk
-                        <strong>20/20</strong>
+                        <strong>Pending</strong>
                     </div>
 
                     <div>
                         Road Importance
-                        <strong>15/20</strong>
+                        <strong>Pending</strong>
                     </div>
 
                     <div>
                         Complaint Frequency
-                        <strong>12/15</strong>
+                        <strong>Pending</strong>
                     </div>
 
                     <div>
                         Defect Age
-                        <strong>10/10</strong>
+                        <strong>Pending</strong>
                     </div>
 
                 </div>
@@ -937,7 +937,7 @@
                 <p>
                     Duplicate Check:
                     <strong>
-                        No duplicate found
+                        Not checked
                     </strong>
                 </p>
 
@@ -989,7 +989,7 @@
                 <div class="stat-card">
 
                     <h3 id="officer-total-count">
-                        24
+                        0
                     </h3>
 
                     <p>
@@ -1002,7 +1002,7 @@
                 <div class="stat-card danger">
 
                     <h3 id="officer-high-risk-count">
-                        7
+                        0
                     </h3>
 
                     <p>
@@ -1015,7 +1015,7 @@
                 <div class="stat-card">
 
                     <h3 id="officer-water-risk-count">
-                        5
+                        0
                     </h3>
 
                     <p>
@@ -1028,7 +1028,7 @@
                 <div class="stat-card">
 
                     <h3 id="officer-work-order-count">
-                        8
+                        0
                     </h3>
 
                     <p>
@@ -1366,6 +1366,11 @@
                         alt="After repair"
                     >
 
+                    <div class="data-row">
+                        <span>Contractor repair coordinates</span>
+                        <strong id="repair-coordinates">Not captured</strong>
+                    </div>
+
                 </div>
 
             </div>
@@ -1389,7 +1394,7 @@
                         class="btn-cta"
                         onclick="verifyRepair()"
                     >
-                        ✓ Verify Repair
+                        ✓ Approve Repair & Close Case
                     </button>
 
 
@@ -1397,7 +1402,7 @@
                         class="btn-outline"
                         onclick="reopenRepair()"
                     >
-                        Reopen / Reject
+                        Reopen / Reject Repair
                     </button>
 
                 </div>

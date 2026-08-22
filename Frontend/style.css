@@ -306,6 +306,25 @@ textarea {
     margin-bottom: 2rem;
 }
 
+#view-citizen-dash .stat-card,
+#view-officer-dash .stat-card,
+#view-contractor-dash .stat-card {
+    min-height: 118px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+#view-citizen-dash .dash-header,
+#view-officer-dash .dash-header,
+#view-contractor-dash .dash-header {
+    background: white;
+    padding: 1.5rem 1.75rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 4px 16px rgba(23,43,77,0.06);
+}
+
 .stat-card {
     background: white;
     padding: 1.4rem;
@@ -907,10 +926,11 @@ th {
 
 .work-order-card {
     background: white;
-    padding: 1.5rem;
+    padding: 1.75rem;
     border-radius: 10px;
-    border-left: 5px solid var(--danger);
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    border: 1px solid var(--border);
+    border-top: 4px solid var(--primary);
+    box-shadow: 0 8px 24px rgba(23,43,77,0.08);
 }
 
 .work-order-header {
@@ -937,6 +957,21 @@ th {
     gap: 0.7rem;
     flex-wrap: wrap;
     margin-top: 1rem;
+}
+
+.work-order-actions button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.work-order-header > div:first-child {
+    display: grid;
+    gap: 0.65rem;
+    width: 100%;
+}
+
+.work-order-header strong {
+    color: var(--text);
 }
 
 .work-order-detail {
@@ -1055,4 +1090,26 @@ th {
         padding: 1rem;
     }
 
+}
+
+.contractor-map {
+    height: 220px;
+    width: 100%;
+    margin: 1rem 0;
+    border-radius: 8px;
+}
+
+.repair-capture-panel {
+    display: grid;
+    gap: 0.75rem;
+    width: 100%;
+    margin-top: 1rem;
+}
+
+.repair-capture-panel video {
+    width: 100%;
+    max-height: 320px;
+    object-fit: cover;
+    border-radius: 8px;
+    background: #050505;
 }

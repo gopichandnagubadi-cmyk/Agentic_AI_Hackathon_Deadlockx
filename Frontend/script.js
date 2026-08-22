@@ -59,7 +59,10 @@ let databaseWaterlogging = [];
 
 let databaseContractors = [];
 
+const locationNameCache = new Map();
+
 let verificationWorkOrderId = null;
+let repairCaptureState = {};
 
 function resetReport() {
 
@@ -202,6 +205,7 @@ async function uploadEvidenceFile(file, dataUrl, path) {
 
     if (error) {
         console.error("Evidence upload failed:", error);
+        alert(`Image upload failed: ${error.message}`);
         return null;
     }
 
@@ -240,9 +244,26 @@ async function loadComplaints() {
     }
 
     databaseComplaints = data || [];
+    await Promise.all(databaseComplaints.map(enrichLocationName));
     return databaseComplaints;
 }
 
+async function enrichLocationName(complaint) {
+    if (complaint.location_name || !Number.isFinite(Number(complaint.latitude)) || !Number.isFinite(Number(complaint.longitude))) {
+        return complaint;
+    }
+
+    const key = `${complaint.latitude},${complaint.longitude}`;
+    if (!locationNameCache.has(key)) {
+        locationNameCache.set(key, fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(complaint.latitude)}&lon=${encodeURIComponent(complaint.longitude)}`)
+            .then(response => response.ok ? response.json() : null)
+            .then(result => result?.display_name || "Location name unavailable")
+            .catch(() => "Location name unavailable"));
+    }
+
+    complaint.location_name = await locationNameCache.get(key);
+    return complaint;
+}
 
 async function loadWorkOrders() {
 
@@ -524,6 +545,20 @@ let currentLocationMarker = null;
 // ======================================================
 
 function showView(viewId) {
+
+    const allowedViews = {
+        "view-citizen-dash": "citizen",
+        "view-report-wizard": "citizen",
+        "view-results": "citizen",
+        "view-officer-dash": "officer",
+        "view-repair-verification": "officer",
+        "view-contractor-dash": "contractor"
+    };
+
+    if (currentRole && allowedViews[viewId] && allowedViews[viewId] !== currentRole) {
+        console.warn("Blocked navigation to unauthorized view:", viewId);
+        return;
+    }
 
     document
         .querySelectorAll(".view")
@@ -1501,24 +1536,15 @@ async function finalizeAnalysis() {
     currentReport.severity =
         "High";
 
-    currentReport.priority =
-        87;
-
-    currentReport.waterRisk =
-        "High";
-
-    currentReport.drainageNearby =
-        true;
-
-    const { error } = await supabaseClient.rpc(
+    const { data: analysis, error } = await supabaseClient.rpc(
         "save_complaint_analysis",
         {
             target_complaint_id: currentReport.complaintId,
             target_defect_type: currentReport.defectType,
             target_severity: currentReport.severity,
-            target_priority: currentReport.priority,
+            target_priority: null,
             target_water_risk: currentReport.waterRisk,
-            target_drainage_nearby: currentReport.drainageNearby
+            target_drainage_nearby: null
         }
     );
 
@@ -1526,6 +1552,13 @@ async function finalizeAnalysis() {
         alert("Unable to save AI analysis: " + error.message);
         return;
     }
+
+    currentReport.priority = analysis.priority;
+    currentReport.waterRisk = analysis.water_risk;
+    currentReport.drainageNearby = analysis.drainage_nearby;
+    databaseComplaints = databaseComplaints.map(complaint =>
+        complaint.complaint_id === analysis.complaint_id ? analysis : complaint
+    );
 
 
     const resultImage =
@@ -1541,9 +1574,12 @@ async function finalizeAnalysis() {
     }
 
     document.getElementById("result-defect-type").innerText = currentReport.defectType;
-    document.getElementById("result-confidence").innerText = "94%";
+    document.getElementById("result-confidence").innerText = "Prototype estimate";
     document.getElementById("result-severity").innerText = currentReport.severity.toUpperCase();
     document.getElementById("result-water-risk").innerText = currentReport.waterRisk.toUpperCase();
+    document.getElementById("result-drainage").innerText = currentReport.drainageNearby
+        ? `YES — ${Math.round(analysis.nearest_drainage_distance_m)} m`
+        : "NO nearby drainage record";
     document.getElementById("priority-score").innerText = `${currentReport.priority}/100`;
 
 
@@ -1716,11 +1752,11 @@ function renderCitizenHistory(complaints = databaseComplaints) {
         : complaints;
 
     const activeCount = visibleComplaints.filter(item =>
-        !["Closed", "Verified"].includes(item.status)
+        item.status !== "Closed"
     ).length;
 
     const resolvedCount = visibleComplaints.filter(item =>
-        ["Closed", "Verified"].includes(item.status)
+        item.status === "Closed"
     ).length;
 
     document.getElementById("citizen-active-count").innerText = activeCount;
@@ -1740,10 +1776,7 @@ function renderCitizenHistory(complaints = databaseComplaints) {
                         Road Defect Report
                     </p>
 
-                    <p>
-                        Severity:
-                        ${item.status}
-                    </p>
+                    <p>Severity: ${item.severity || "Pending analysis"}</p>
 
                     <p>
                         Priority:
@@ -1751,8 +1784,7 @@ function renderCitizenHistory(complaints = databaseComplaints) {
                     </p>
 
                     <p>
-                        Status:
-                        ${new Date(item.created_at).toLocaleString()}
+                        Status: ${item.status} · ${new Date(item.created_at).toLocaleString()}
                     </p>
 
                 </div>
@@ -1780,7 +1812,9 @@ async function initOfficerDashboard() {
         databaseComplaints.filter(item => item.severity === "High").length;
     document.getElementById("officer-water-risk-count").innerText =
         databaseComplaints.filter(item => item.water_risk === "High").length;
-    document.getElementById("officer-work-order-count").innerText = databaseWorkOrders.length;
+    document.getElementById("officer-work-order-count").innerText = databaseWorkOrders.filter(item =>
+        !["Closed", "Rejected"].includes(item.status)
+    ).length;
 
     renderOfficerTable();
 
@@ -1816,14 +1850,12 @@ function renderOfficerTable() {
 
                     <td>
                         ${item.complaint_id}
+                    <td>
+                        ${item.location_name || "Location unavailable"}
                     </td>
 
                     <td>
-                        Guntur
-                    </td>
-
-                    <td>
-                        Road Defect
+                            ${item.defect_type || "Pending analysis"}
                     </td>
 
                     <td>
@@ -1833,7 +1865,11 @@ function renderOfficerTable() {
                     </td>
 
                     <td>
-                        ${item.accuracy ? `${item.accuracy} m` : "Manual"}
+                        ${item.priority ?? "Pending"}
+                    </td>
+
+                    <td>
+                        ${item.water_risk || "Pending"}
                     </td>
 
                     <td>
@@ -1841,13 +1877,7 @@ function renderOfficerTable() {
                     </td>
 
                     <td>
-                        <button
-                            class="btn-primary"
-                            onclick="reviewComplaint('${item.complaint_id}')">
-
-                            Review
-
-                        </button>
+                        ${renderOfficerActions(item)}
 
                     </td>
 
@@ -1894,10 +1924,12 @@ function initOfficerMap() {
     const firstComplaint = databaseComplaints.find(complaint =>
         Number.isFinite(Number(complaint.latitude)) &&
         Number.isFinite(Number(complaint.longitude))
-    ) || {
-        latitude: 16.12345,
-        longitude: 80.12345
-    };
+    );
+
+    if (!firstComplaint) {
+        mapElement.innerHTML = "No complaint coordinates are available.";
+        return;
+    }
 
 
     officerMapInstance =
@@ -1959,6 +1991,11 @@ function initOfficerMap() {
                 Coordinates:
                 ${formatCoordinate(complaint.latitude)},
                 ${formatCoordinate(complaint.longitude)}
+
+                <br>
+
+                Location:
+                ${complaint.location_name || "Location name unavailable"}
 
             `);
         }
@@ -2048,6 +2085,10 @@ function reviewComplaint(
     }
 
 
+    if (complaint.status === "Reported") {
+        prepareComplaintForReview(complaintId);
+    }
+
     alert(`
 
 Complaint: ${complaint.complaint_id}
@@ -2062,6 +2103,33 @@ Status:
 ${complaint.status}
 
     `);
+}
+
+
+async function prepareComplaintForReview(complaintId) {
+    const { data, error } = await supabaseClient.rpc("prepare_complaint_for_review", {
+        target_complaint_id: complaintId
+    });
+
+    if (error) {
+        alert("Unable to prepare complaint: " + error.message);
+        return;
+    }
+
+    databaseComplaints = databaseComplaints.map(item =>
+        item.complaint_id === complaintId ? { ...item, ...data } : item
+    );
+    await initOfficerDashboard();
+}
+
+
+async function verifyComplaint(complaintId) {
+    const complaint = await updateComplaintStatus(complaintId, "Verified");
+
+    if (!complaint) return;
+
+    await initOfficerDashboard();
+    alert(`${complaintId} verified. It is ready for work-order creation.`);
 }
 
 
@@ -2102,13 +2170,18 @@ function renderContractorWorkOrders() {
         return;
     }
 
-    const assignedWorkOrders = databaseWorkOrders;
+    const assignedWorkOrders = currentUser
+        ? databaseWorkOrders.filter(order => order.contractor_id === currentUser.id)
+        : [];
 
     document.getElementById("contractor-assigned").innerText = assignedWorkOrders.length;
     document.getElementById("contractor-progress").innerText =
         assignedWorkOrders.filter(order => order.status === "In Progress").length;
     document.getElementById("contractor-completed").innerText =
-        assignedWorkOrders.filter(order => order.status === "Repair Completed").length;
+        assignedWorkOrders.filter(order => [
+            "Completed Awaiting Verification",
+            "Closed"
+        ].includes(order.status)).length;
 
     if (!assignedWorkOrders.length) {
         container.innerHTML = "<p>No work orders are currently assigned.</p>";
@@ -2117,27 +2190,56 @@ function renderContractorWorkOrders() {
 
     container.innerHTML = assignedWorkOrders.map(workOrder => {
         const complaint = workOrder.complaints;
+        const canRepair = workOrder.status === "In Progress";
 
         return `
         <div class="work-order-card">
             <div class="work-order-header">
                 <div>
-                        ${renderOfficerActions(item)}
-                <div><span>Accuracy</span><strong>${complaint.accuracy ? `${complaint.accuracy} m` : "Manual"}</strong></div>
-                <div><span>Reported</span><strong>${new Date(complaint.created_at).toLocaleDateString()}</strong></div>
+                    <strong>${workOrder.work_order_id || workOrder.id}</strong>
+                    <p>${complaint?.complaint_id || "Complaint unavailable"}</p>
+                    <div><span>City / Area</span><strong>${complaint?.location_name || "Location name unavailable"}</strong></div>
+                    <div><span>Location</span><strong>${formatCoordinate(complaint?.latitude)}, ${formatCoordinate(complaint?.longitude)}</strong></div>
+                    <div id="contractor-map-${workOrder.id}" class="contractor-map"></div>
+                <div><span>Accuracy</span><strong>${complaint?.accuracy ? `${complaint.accuracy} m` : "Manual"}</strong></div>
+                <div><span>Reported</span><strong>${complaint?.created_at ? new Date(complaint.created_at).toLocaleDateString() : "Unavailable"}</strong></div>
+                <div><span>Status</span><strong>${workOrder.status}</strong></div>
+            </div>
             </div>
             <div class="work-order-actions">
-                <button class="btn-secondary" onclick="acceptWorkOrder('${workOrder.id}')">Accept Work</button>
-                <button class="btn-primary" onclick="startWorkOrder('${workOrder.id}')">Start Work</button>
-                <label class="btn-outline upload-evidence">
-                    Upload Repair Evidence
-                    <input type="file" accept="image/*" onchange="uploadRepairEvidence(event, '${workOrder.id}')">
-                </label>
-                <button class="btn-cta" onclick="completeWorkOrder('${workOrder.id}')">Mark Completed</button>
+                ${workOrder.status === "Assigned" || workOrder.status === "Rejected"
+                    ? `<button class="btn-secondary" onclick="acceptWorkOrder('${workOrder.id}')">Accept Work</button>`
+                    : ""}
+                ${workOrder.status === "Accepted"
+                    ? `<button class="btn-primary" onclick="startWorkOrder('${workOrder.id}')">Start Work</button>`
+                    : ""}
+                ${canRepair
+                    ? `<button class="btn-outline" onclick="startRepairCamera('${workOrder.id}')">Open Repair Camera</button>
+                    <button class="btn-secondary" onclick="captureRepairLocation('${workOrder.id}')">Capture Repair Location</button>
+                    <button id="submit-repair-${workOrder.id}" class="btn-cta" onclick="submitRepairCompletion('${workOrder.id}')" disabled>Submit Repair</button>
+                    <div id="repair-capture-${workOrder.id}" class="repair-capture-panel hidden">
+                        <video id="repair-video-${workOrder.id}" autoplay playsinline></video>
+                        <button class="btn-primary" onclick="captureRepairPhoto('${workOrder.id}')">Capture Closed Pothole Photo</button>
+                        <img id="repair-preview-${workOrder.id}" class="repair-image hidden" alt="Captured closed pothole">
+                    </div>
+                    <p id="repair-location-${workOrder.id}" class="note">Repair location not captured.</p>`
+                    : ""}
             </div>
         </div>
     `;
     }).join("");
+
+    assignedWorkOrders.forEach(workOrder => {
+        const complaint = workOrder.complaints;
+        const mapElement = document.getElementById(`contractor-map-${workOrder.id}`);
+        if (!mapElement || !Number.isFinite(Number(complaint?.latitude)) || !Number.isFinite(Number(complaint?.longitude))) return;
+        const workMap = L.map(mapElement).setView([complaint.latitude, complaint.longitude], 17);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            attribution: "&copy; OpenStreetMap contributors"
+        }).addTo(workMap);
+        L.marker([complaint.latitude, complaint.longitude]).addTo(workMap)
+            .bindPopup("Assigned pothole location").openPopup();
+    });
 }
 
 
@@ -2153,6 +2255,20 @@ function renderOfficerActions(complaint) {
         </button>
     `;
 
+    if (complaint.status === "Reported") {
+        return `${reviewButton}
+            <button class="btn-primary" onclick="reviewComplaint('${complaint.complaint_id}')">
+                Start Review
+            </button>`;
+    }
+
+    if (["Under Review", "Analyzed"].includes(complaint.status)) {
+        return `${reviewButton}
+            <button class="btn-primary" onclick="verifyComplaint('${complaint.complaint_id}')">
+                Verify Complaint
+            </button>`;
+    }
+
     if (!workOrder) {
         return `${reviewButton}
             <button class="btn-primary" onclick="createWorkOrder('${complaint.complaint_id}')">
@@ -2160,7 +2276,7 @@ function renderOfficerActions(complaint) {
             </button>`;
     }
 
-    if (workOrder.status === "Repair Completed") {
+    if (workOrder.status === "Completed Awaiting Verification") {
         return `${reviewButton}
             <button class="btn-cta" onclick="openVerification('${workOrder.id}')">
                 Verify Repair
@@ -2238,7 +2354,10 @@ async function acceptWorkOrder(workOrderId) {
 
     const result = await transitionWorkOrderById(workOrderId, "Accepted");
 
-    if (result) alert(`${workOrderId} accepted.`);
+    if (result) {
+        alert(`${workOrderId} accepted.`);
+        renderContractorWorkOrders();
+    }
 }
 
 
@@ -2246,7 +2365,10 @@ async function startWorkOrder(workOrderId) {
 
     const result = await transitionWorkOrderById(workOrderId, "In Progress");
 
-    if (result) alert(`${workOrderId} work started.`);
+    if (result) {
+        alert(`${workOrderId} work started.`);
+        renderContractorWorkOrders();
+    }
 }
 
 
@@ -2262,9 +2384,7 @@ async function uploadRepairEvidence(event, workOrderId) {
     const workOrder = databaseWorkOrders.find(item => item.id === workOrderId);
     if (!workOrder) return;
 
-    const evidenceColumn = workOrder.evidence_before_url
-        ? "evidence_after_url"
-        : "evidence_before_url";
+    const evidenceColumn = "evidence_after_url";
     const path = `work-orders/${currentUser.id}/${workOrderId}/${evidenceColumn}.jpg`;
     const imagePath = await uploadEvidenceFile(file, null, path);
 
@@ -2289,9 +2409,109 @@ async function uploadRepairEvidence(event, workOrderId) {
 }
 
 
+async function startRepairCamera(workOrderId) {
+    const panel = document.getElementById(`repair-capture-${workOrderId}`);
+    const video = document.getElementById(`repair-video-${workOrderId}`);
+    if (!panel || !video) return;
+
+    try {
+        repairCaptureState[workOrderId] = repairCaptureState[workOrderId] || {};
+        repairCaptureState[workOrderId].stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: "environment" } },
+            audio: false
+        });
+        video.srcObject = repairCaptureState[workOrderId].stream;
+        panel.classList.remove("hidden");
+    } catch (error) {
+        console.error("Repair camera error:", error);
+        alert("Repair camera access was denied or unavailable.");
+    }
+}
+
+
+function captureRepairPhoto(workOrderId) {
+    const video = document.getElementById(`repair-video-${workOrderId}`);
+    const preview = document.getElementById(`repair-preview-${workOrderId}`);
+    if (!video?.videoWidth) {
+        alert("Open the repair camera and wait for the preview.");
+        return;
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext("2d").drawImage(video, 0, 0);
+    repairCaptureState[workOrderId] = repairCaptureState[workOrderId] || {};
+    repairCaptureState[workOrderId].image = canvas.toDataURL("image/jpeg", 0.9);
+    preview.src = repairCaptureState[workOrderId].image;
+    preview.classList.remove("hidden");
+    repairCaptureState[workOrderId].stream?.getTracks().forEach(track => track.stop());
+    updateRepairSubmitState(workOrderId);
+}
+
+
+function captureRepairLocation(workOrderId) {
+    if (!navigator.geolocation) {
+        alert("This browser does not support location capture.");
+        return;
+    }
+
+    navigator.geolocation.getCurrentPosition(position => {
+        repairCaptureState[workOrderId] = repairCaptureState[workOrderId] || {};
+        repairCaptureState[workOrderId].coords = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy
+        };
+        document.getElementById(`repair-location-${workOrderId}`).innerText =
+            `Captured: ${formatCoordinate(position.coords.latitude)}, ${formatCoordinate(position.coords.longitude)} (±${Math.round(position.coords.accuracy)} m)`;
+        updateRepairSubmitState(workOrderId);
+    }, error => {
+        alert(`Unable to capture repair location: ${error.message}`);
+    }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+}
+
+
+function updateRepairSubmitState(workOrderId) {
+    const capture = repairCaptureState[workOrderId];
+    const button = document.getElementById(`submit-repair-${workOrderId}`);
+    if (button) button.disabled = !capture?.image || !capture?.coords;
+}
+
+
+async function submitRepairCompletion(workOrderId) {
+    const capture = repairCaptureState[workOrderId];
+    if (!capture?.image || !capture?.coords) {
+        alert("Capture the closed-pothole photo and repair location first.");
+        return;
+    }
+
+    const path = `work-orders/${currentUser.id}/${workOrderId}/evidence_after.jpg`;
+    const imagePath = await uploadEvidenceFile(null, capture.image, path);
+    if (!imagePath) return;
+
+    const { data, error } = await supabaseClient.rpc("submit_work_order_completion", {
+        target_work_order_id: workOrderId,
+        captured_latitude: capture.coords.latitude,
+        captured_longitude: capture.coords.longitude,
+        captured_accuracy: capture.coords.accuracy,
+        captured_image_path: imagePath
+    });
+
+    if (error) {
+        alert("Unable to submit repair: " + error.message);
+        return;
+    }
+
+    databaseWorkOrders = databaseWorkOrders.map(item => item.id === workOrderId ? { ...item, ...data } : item);
+    alert("Repair submitted to the officer for verification.");
+    showContractorDashboard();
+}
+
+
 async function completeWorkOrder(workOrderId) {
 
-    const result = await transitionWorkOrderById(workOrderId, "Repair Completed");
+    const result = await transitionWorkOrderById(workOrderId, "Completed Awaiting Verification");
 
     if (!result) return;
 
@@ -2311,6 +2531,10 @@ async function openVerification(workOrderId) {
     const afterUrl = await getEvidenceUrl(workOrder?.evidence_after_url);
     document.getElementById("before-repair-image").src = beforeUrl || "";
     document.getElementById("after-repair-image").src = afterUrl || "";
+    const complaint = databaseComplaints.find(item => item.complaint_id === workOrder.complaint_id);
+    document.getElementById("repair-coordinates").innerText = workOrder.repair_latitude
+        ? `Complaint: ${formatCoordinate(complaint?.latitude)}, ${formatCoordinate(complaint?.longitude)} | Repair: ${formatCoordinate(workOrder.repair_latitude)}, ${formatCoordinate(workOrder.repair_longitude)} (±${Math.round(workOrder.repair_accuracy || 0)} m)`
+        : `Complaint: ${formatCoordinate(complaint?.latitude)}, ${formatCoordinate(complaint?.longitude)} | Repair: Not captured`;
     showView("view-repair-verification");
 }
 
@@ -2318,8 +2542,8 @@ async function openVerification(workOrderId) {
 async function reopenRepair() {
 
     const workOrder = databaseWorkOrders.find(item => item.id === verificationWorkOrderId);
-    const complaint = workOrder && await updateComplaintStatus(workOrder.complaint_id, "Contractor Assigned");
-    const result = workOrder && await transitionWorkOrderById(workOrder.id, "Rejected");
+    const complaint = workOrder && await updateComplaintStatus(workOrder.complaint_id, "Reopened");
+    const result = workOrder && await transitionWorkOrderById(workOrder.id, "Reopened");
 
     if (complaint && result) alert("Repair rejected and sent back to the contractor.");
 }
@@ -2344,8 +2568,6 @@ async function createWorkOrder(
     }
 
     databaseWorkOrders.unshift(data);
-
-    databaseWorkOrders.unshift(data);
     await loadComplaints();
 
     alert(`Work order created for ${complaintId}`);
@@ -2363,20 +2585,12 @@ async function assignContractor(
     complaintId,
     contractorId
 ) {
-
-    const complaint = await updateComplaintStatus(
-        complaintId,
-        "Contractor Assigned"
-    );
-
-    if (!complaint) return;
-
     const workOrder = databaseWorkOrders.find(
         item => item.complaint_id === complaintId
     );
 
     if (workOrder && /^[0-9a-f-]{36}$/i.test(contractorId)) {
-        const { error } = await supabaseClient.rpc(
+        const { data: assignedWorkOrder, error } = await supabaseClient.rpc(
             "assign_work_order",
             {
                 target_work_order_id: workOrder.id,
@@ -2389,12 +2603,19 @@ async function assignContractor(
             return;
         }
 
+        databaseWorkOrders = databaseWorkOrders.map(item =>
+            item.id === assignedWorkOrder.id ? { ...item, ...assignedWorkOrder } : item
+        );
+        await loadComplaints();
         await loadWorkOrders();
+    } else {
+        alert("The work order or contractor selection is invalid.");
+        return;
     }
 
 
     alert(
-        `Contractor assigned to ${complaint.complaint_id}`
+        `Contractor assigned to ${complaintId}`
     );
 
 
@@ -2432,31 +2653,22 @@ async function verifyRepair(
 ) {
 
     const workOrder = databaseWorkOrders.find(item => item.id === verificationWorkOrderId);
-    const targetComplaint = complaintId || workOrder?.complaint_id || databaseComplaints[0]?.complaint_id;
-    const complaint = await updateComplaintStatus(targetComplaint, "Closed");
-    const verifiedWorkOrder = workOrder && await supabaseClient.rpc(
-        "transition_work_order",
-        {
-            target_work_order_id: workOrder.id,
-            next_status: "Verified"
-        }
-    );
+    if (!workOrder) {
+        return;
+    }
 
+    const verifiedWorkOrder = await transitionWorkOrderById(workOrder.id, "Closed");
 
-    if (!complaint || verifiedWorkOrder?.error) {
+    if (!verifiedWorkOrder) {
         return;
     }
 
 
-    complaint.status =
-        "Closed";
-
-
     alert(
-        `${complaint.complaint_id} has been verified and closed.`
+        `${workOrder.complaint_id} has been verified and closed.`
     );
 
-
+    await initOfficerDashboard();
     renderOfficerTable();
 }
 
