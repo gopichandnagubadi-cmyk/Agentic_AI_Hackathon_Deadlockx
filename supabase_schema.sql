@@ -531,6 +531,7 @@ declare
     previous_status text;
     nearest_distance double precision;
     nearby_water_risk text;
+    calculated_severity text;
     calculated_priority integer;
 begin
         select status into previous_status
@@ -561,16 +562,22 @@ begin
           and upper(hotspot.risk) = 'HIGH'
     ) then 'High' else 'Medium' end into nearby_water_risk;
 
+    calculated_severity := case
+        when target_estimated_size_m2 >= 2 or target_approximate_depth_cm >= 15 then 'High'
+        when target_estimated_size_m2 >= 0.5 or target_approximate_depth_cm >= 8 then 'Medium'
+        else 'Low'
+    end;
+
     calculated_priority := least(100, greatest(0,
-        case when upper(target_severity) = 'HIGH' then 55
-             when upper(target_severity) = 'MEDIUM' then 35 else 20 end
+        case when calculated_severity = 'High' then 55
+             when calculated_severity = 'Medium' then 35 else 20 end
         + case when nearby_water_risk = 'High' then 25 else 10 end
         + case when nearest_distance <= 100 then 20 when nearest_distance <= 250 then 10 else 0 end
     ));
 
     update public.complaints
     set defect_type = target_defect_type,
-        severity = target_severity,
+        severity = calculated_severity,
         estimated_size_m2 = target_estimated_size_m2,
         approximate_depth_cm = target_approximate_depth_cm,
         priority = calculated_priority,
