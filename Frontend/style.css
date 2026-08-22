@@ -19,7 +19,7 @@
 }
 
 body {
-    font-family: 'Inter', sans-serif;
+    font-family: "Inter", sans-serif;
     background: var(--bg);
     color: var(--text);
     line-height: 1.5;
@@ -40,44 +40,57 @@ button {
     display: none !important;
 }
 
-.dark-text {
-    color: var(--text) !important;
-}
-
-.text-danger {
-    color: var(--danger);
+.full-width {
+    width: 100%;
 }
 
 .mt-2 {
     margin-top: 1rem;
 }
 
+.text-danger {
+    color: var(--danger);
+}
 
-/* =========================
+.eyebrow {
+    color: var(--primary);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.note {
+    color: var(--muted);
+    font-size: 0.8rem;
+    margin-top: 0.7rem;
+}
+
+
+/* =========================================================
    NAVIGATION
-========================= */
+========================================================= */
 
 nav {
-    background: var(--primary-dark);
-    color: white;
-    padding: 0.85rem 1.5rem;
     position: sticky;
     top: 0;
     z-index: 1000;
+    background: var(--primary-dark);
+    color: white;
+    padding: 0.85rem 1.5rem;
 }
 
 .nav-container {
     max-width: 1300px;
     margin: auto;
-
     display: flex;
     align-items: center;
     gap: 2rem;
 }
 
 .brand {
-    font-weight: 700;
     font-size: 1.2rem;
+    font-weight: 700;
 }
 
 .brand span {
@@ -111,9 +124,9 @@ nav {
 }
 
 
-/* =========================
+/* =========================================================
    LAYOUT
-========================= */
+========================================================= */
 
 main {
     max-width: 1300px;
@@ -126,7 +139,6 @@ main {
 }
 
 @keyframes fadeIn {
-
     from {
         opacity: 0;
         transform: translateY(8px);
@@ -136,21 +148,12 @@ main {
         opacity: 1;
         transform: translateY(0);
     }
-
-}
-
-.eyebrow {
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    color: var(--primary);
-    text-transform: uppercase;
 }
 
 
-/* =========================
+/* =========================================================
    BUTTONS
-========================= */
+========================================================= */
 
 .btn-primary,
 .btn-cta,
@@ -190,7 +193,6 @@ main {
     background: white;
     color: var(--primary);
     border: 1px solid var(--primary);
-    display: inline-block;
 }
 
 .btn-text {
@@ -206,14 +208,10 @@ main {
     font-weight: 600;
 }
 
-.full-width {
-    width: 100%;
-}
 
-
-/* =========================
+/* =========================================================
    LOGIN
-========================= */
+========================================================= */
 
 .login-card {
     background: white;
@@ -239,16 +237,10 @@ main {
     margin: 0.6rem 0 2rem;
 }
 
-.note {
-    font-size: 0.78rem;
-    color: var(--muted);
-    margin-top: 0.8rem;
-}
 
-
-/* =========================
+/* =========================================================
    FORMS
-========================= */
+========================================================= */
 
 .form-group {
     text-align: left;
@@ -279,9 +271,9 @@ textarea {
 }
 
 
-/* =========================
+/* =========================================================
    DASHBOARD
-========================= */
+========================================================= */
 
 .dash-header {
     display: flex;
@@ -289,10 +281,10 @@ textarea {
     align-items: center;
     gap: 1rem;
     margin-bottom: 2rem;
-}
-
-.dash-header h2 {
-    margin-top: 0.3rem;
+    background: white;
+    padding: 1.5rem 1.75rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
 }
 
 .dash-header p {
@@ -306,25 +298,6 @@ textarea {
     margin-bottom: 2rem;
 }
 
-#view-citizen-dash .stat-card,
-#view-officer-dash .stat-card,
-#view-contractor-dash .stat-card {
-    min-height: 118px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-}
-
-#view-citizen-dash .dash-header,
-#view-officer-dash .dash-header,
-#view-contractor-dash .dash-header {
-    background: white;
-    padding: 1.5rem 1.75rem;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    box-shadow: 0 4px 16px rgba(23,43,77,0.06);
-}
-
 .stat-card {
     background: white;
     padding: 1.4rem;
@@ -333,45 +306,56 @@ textarea {
     box-shadow: 0 2px 8px rgba(0,0,0,0.04);
 }
 
-.stat-card.danger {
-    border-left-color: var(--danger);
-}
-
 .stat-card h3 {
     font-size: 2rem;
+}
+
+.stat-card.danger,
+.danger-card {
+    border-left-color: var(--danger);
 }
 
 .success-card {
     border-left-color: var(--success);
 }
 
-.danger-card {
-    border-left-color: var(--danger);
-}
-
 .warning-card {
     border-left-color: var(--warning);
 }
 
-
-/* =========================
-   SECTIONS
-========================= */
-
-.section-title,
 .section-heading {
     margin: 1.5rem 0 1rem;
 }
 
-.section-title {
-    display: flex;
-    justify-content: space-between;
+
+/* =========================================================
+   CITIZEN HISTORY
+========================================================= */
+
+.list-container {
+    display: grid;
+    gap: 1rem;
+}
+
+.history-card {
+    background: white;
+    padding: 1.3rem;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+}
+
+.history-card h4 {
+    margin-bottom: 0.4rem;
+}
+
+.history-card p {
+    color: var(--muted);
 }
 
 
-/* =========================
+/* =========================================================
    WIZARD
-========================= */
+========================================================= */
 
 .wizard-header {
     display: flex;
@@ -406,11 +390,9 @@ textarea {
     border-radius: 50%;
     background: var(--primary);
     color: white;
-
     display: flex;
     justify-content: center;
     align-items: center;
-
     font-weight: 700;
 }
 
@@ -420,20 +402,18 @@ textarea {
 }
 
 
-/* =========================
+/* =========================================================
    CAMERA
-========================= */
+========================================================= */
 
 .camera-ui {
     height: 360px;
     background: #050505;
     border-radius: 12px;
     overflow: hidden;
-
     display: flex;
     align-items: center;
     justify-content: center;
-
     position: relative;
     margin-bottom: 1rem;
 }
@@ -475,9 +455,9 @@ textarea {
 }
 
 
-/* =========================
+/* =========================================================
    LOCATION
-========================= */
+========================================================= */
 
 .privacy-note {
     background: var(--light-blue);
@@ -492,37 +472,10 @@ textarea {
     border: 1px solid var(--border);
     padding: 1rem;
     border-radius: 9px;
-
     display: flex;
     justify-content: space-between;
     align-items: center;
     gap: 1rem;
-}
-
-.location-address {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.75rem;
-    margin-top: 0.75rem;
-    padding: 0.85rem 1rem;
-    background: #ffffff;
-    border: 1px solid var(--border);
-    border-radius: 9px;
-}
-
-.location-address div {
-    min-width: 0;
-}
-
-.location-address span {
-    display: block;
-    color: var(--muted);
-    font-size: 0.75rem;
-}
-
-.location-address strong {
-    display: block;
-    overflow-wrap: anywhere;
 }
 
 .location-empty {
@@ -535,10 +488,50 @@ textarea {
     font-size: 0.8rem;
 }
 
-.gps-status {
+.location-address {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+    padding: 1rem;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+}
+
+.location-address span,
+.location-info-grid span,
+.work-order-details span {
+    display: block;
+    color: var(--muted);
+    font-size: 0.78rem;
+}
+
+.gps-details {
     margin-top: 0.8rem;
-    padding: 0.8rem;
-    border-radius: 7px;
+    background: #f8f9fb;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 1rem;
+}
+
+.gps-status {
+    color: var(--success);
+    font-weight: 700;
+    margin-bottom: 1rem;
+}
+
+.gps-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.gps-grid span {
+    display: block;
+    color: var(--muted);
+    font-size: 0.75rem;
 }
 
 .manual-location {
@@ -551,23 +544,19 @@ textarea {
 .manual-location-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    margin-bottom: 0.5rem;
 }
 
-.manual-location-form {
-    margin-top: 1rem;
+.manual-location p {
+    color: var(--muted);
+    font-size: 0.85rem;
+    margin-bottom: 1rem;
 }
 
 .form-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 1rem;
-}
-
-.manual-help {
-    font-size: 0.75rem;
-    color: var(--muted);
-    margin-top: 0.5rem;
 }
 
 .mini-map {
@@ -577,21 +566,18 @@ textarea {
     overflow: hidden;
 }
 
-.submit-report-btn {
+.location-warning {
     margin-top: 1rem;
-}
-
-.form-footer-note {
-    color: var(--muted);
-    font-size: 0.8rem;
-    text-align: center;
-    margin-top: 1rem;
+    padding: 1rem;
+    background: #fff4e5;
+    border-radius: 8px;
+    color: #7a4d00;
 }
 
 
-/* =========================
+/* =========================================================
    PROCESSING
-========================= */
+========================================================= */
 
 .processing-container {
     text-align: center;
@@ -605,14 +591,10 @@ textarea {
 .spinner {
     width: 55px;
     height: 55px;
-
     border: 5px solid #eee;
     border-top-color: var(--primary);
-
     border-radius: 50%;
-
     animation: spin 1s linear infinite;
-
     margin: 1rem auto;
 }
 
@@ -644,9 +626,9 @@ textarea {
 }
 
 
-/* =========================
+/* =========================================================
    RESULTS
-========================= */
+========================================================= */
 
 .result-header {
     color: white;
@@ -693,39 +675,16 @@ textarea {
     left: 25%;
     width: 50%;
     height: 40%;
-
     border: 3px solid #00ff00;
     background: rgba(0,255,0,0.1);
-}
-
-.ai-label {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-
-    background: var(--danger);
-    color: white;
-
-    padding: 4px 8px;
-    border-radius: 4px;
-
-    font-size: 0.7rem;
-    font-weight: 700;
 }
 
 .data-row {
     display: flex;
     justify-content: space-between;
-
+    gap: 1rem;
     padding: 0.65rem 0;
     border-bottom: 1px solid var(--bg);
-}
-
-.risk-alert {
-    background: #fff4e5;
-    padding: 1rem;
-    border-radius: 7px;
-    margin: 1rem 0;
 }
 
 .result-card hr {
@@ -762,6 +721,7 @@ textarea {
 
 .risk-bar {
     height: 100%;
+    width: 0;
     background: var(--danger);
     transition: width 0.5s;
 }
@@ -776,24 +736,15 @@ textarea {
 }
 
 .priority-box h3 {
-    font-size: 2.8rem;
+    font-size: 2rem;
     color: var(--primary);
-}
-
-.critical-badge {
-    background: var(--danger);
-    color: white;
-    padding: 5px 10px;
-    border-radius: 5px;
-    font-size: 0.75rem;
-    font-weight: 700;
 }
 
 .priority-breakdown {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
     gap: 0.5rem;
-    margin-top: 1.5rem;
+    margin: 1.5rem 0;
 }
 
 .priority-breakdown div {
@@ -809,30 +760,16 @@ textarea {
 }
 
 .location-result {
-    line-height: 1.8;
-}
-
-.result-actions {
-    margin-top: 1rem;
-}
-
-
-/* =========================
-   MAP
-========================= */
-
-.map-card {
     background: white;
-    padding: 1.5rem;
-    border-radius: 10px;
-    margin-bottom: 2rem;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
 }
 
-.main-map {
-    height: 450px;
-    width: 100%;
-    border-radius: 9px;
-}
+
+/* =========================================================
+   MAP
+========================================================= */
 
 .dashboard-section,
 .location-info-panel,
@@ -844,56 +781,24 @@ textarea {
     box-shadow: 0 2px 8px rgba(0,0,0,0.04);
 }
 
-.section-header,
-.location-info-grid,
-.work-order-details,
-.verification-actions {
-    display: flex;
-    gap: 1rem;
-    flex-wrap: wrap;
-}
-
-.location-info-grid,
-.work-order-details {
+.main-map {
+    height: 450px;
+    width: 100%;
+    border-radius: 9px;
     margin-top: 1rem;
 }
 
-.location-info-grid > div,
-.work-order-details > div {
-    flex: 1 1 180px;
-}
-
-.location-info-grid span,
-.work-order-details span {
-    display: block;
-    color: var(--muted);
-    font-size: 0.8rem;
-}
-
-.repair-image {
-    width: 100%;
-    min-height: 220px;
-    object-fit: cover;
-    border-radius: 8px;
-    background: var(--bg);
-}
-
-.upload-evidence {
-    position: relative;
-    overflow: hidden;
-}
-
-.upload-evidence input {
-    position: absolute;
-    inset: 0;
-    opacity: 0;
-    cursor: pointer;
+.location-info-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-top: 1rem;
 }
 
 
-/* =========================
+/* =========================================================
    TABLE
-========================= */
+========================================================= */
 
 .table-container {
     background: white;
@@ -904,7 +809,7 @@ textarea {
 table {
     width: 100%;
     border-collapse: collapse;
-    min-width: 1000px;
+    min-width: 1100px;
 }
 
 th,
@@ -933,22 +838,9 @@ th {
 }
 
 
-/* =========================
-   DETAILS
-========================= */
-
-.detail-panel {
-    background: white;
-    border-radius: 10px;
-    padding: 1.5rem;
-    margin-top: 1.5rem;
-    border-left: 5px solid var(--primary);
-}
-
-
-/* =========================
+/* =========================================================
    CONTRACTOR
-========================= */
+========================================================= */
 
 .work-order-list {
     display: grid;
@@ -965,22 +857,12 @@ th {
 }
 
 .work-order-header {
-    display: flex;
-    justify-content: space-between;
-    gap: 1rem;
+    display: grid;
+    gap: 0.8rem;
 }
 
-.work-order-card p {
-    color: var(--muted);
-}
-
-.status-badge.danger {
-    background: #ffebe6;
-    color: var(--danger);
-    padding: 4px 7px;
-    border-radius: 4px;
-    font-size: 0.7rem;
-    font-weight: 700;
+.work-order-header strong {
+    color: var(--text);
 }
 
 .work-order-actions {
@@ -995,53 +877,72 @@ th {
     cursor: not-allowed;
 }
 
-.work-order-header > div:first-child {
-    display: grid;
-    gap: 0.65rem;
+.contractor-map {
+    height: 220px;
     width: 100%;
+    margin: 1rem 0;
+    border-radius: 8px;
 }
 
-.work-order-header strong {
-    color: var(--text);
+.repair-capture-panel {
+    display: grid;
+    gap: 0.75rem;
+    width: 100%;
+    margin-top: 1rem;
 }
 
-.work-order-detail {
-    background: white;
-    padding: 2rem;
-    border-radius: 10px;
-    margin-top: 1.5rem;
+.repair-capture-panel video {
+    width: 100%;
+    max-height: 320px;
+    object-fit: cover;
+    border-radius: 8px;
+    background: #050505;
 }
 
-.lifecycle {
+
+/* =========================================================
+   BEFORE / AFTER
+========================================================= */
+
+.repair-image-wrapper {
+    position: relative;
+    margin-top: 1rem;
+    min-height: 250px;
+    background: var(--bg);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.repair-image {
+    width: 100%;
+    min-height: 250px;
+    max-height: 450px;
+    object-fit: cover;
+    display: block;
+}
+
+.image-placeholder {
+    min-height: 250px;
     display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+.verification-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1rem;
     flex-wrap: wrap;
-    gap: 0.5rem;
-    margin: 1.5rem 0;
-}
-
-.lifecycle-step {
-    padding: 0.6rem 0.8rem;
-    border-radius: 5px;
-    background: #eee;
-    font-size: 0.75rem;
-}
-
-.lifecycle-step.completed {
-    background: #dff7ec;
-    color: var(--success);
-}
-
-.lifecycle-step.current {
-    background: var(--primary);
-    color: white;
 }
 
 
-/* =========================
+/* =========================================================
    MOBILE
-========================= */
+========================================================= */
 
-@media (max-width: 900px) {
+@media (max-width: 1000px) {
 
     .stats-grid {
         grid-template-columns: repeat(2, 1fr);
@@ -1055,7 +956,15 @@ th {
         grid-template-columns: repeat(2, 1fr);
     }
 
+    .location-info-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .gps-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
 }
+
 
 @media (max-width: 650px) {
 
@@ -1105,6 +1014,10 @@ th {
         grid-template-columns: 1fr;
     }
 
+    .gps-grid {
+        grid-template-columns: 1fr;
+    }
+
     .risk-scenario {
         flex-direction: column;
     }
@@ -1113,223 +1026,15 @@ th {
         grid-template-columns: 1fr;
     }
 
-    .manual-location-header {
+    .location-info-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .verification-actions {
         flex-direction: column;
-        align-items: flex-start;
-        gap: 0.5rem;
     }
 
-    .dashboard-section,
-    .location-info-panel,
-    .verification-panel {
-        padding: 1rem;
-    }
-
-}
-
-.contractor-map {
-    height: 220px;
-    width: 100%;
-    margin: 1rem 0;
-    border-radius: 8px;
-}
-
-.repair-capture-panel {
-    display: grid;
-    gap: 0.75rem;
-    width: 100%;
-    margin-top: 1rem;
-}
-
-.repair-capture-panel video {
-    width: 100%;
-    max-height: 320px;
-    object-fit: cover;
-    border-radius: 8px;
-    background: #050505;
-}
-
-/* =========================================================
-   LOGIN PAGE REDESIGN (APPEND AT THE END OF style.css)
-   This only affects #view-login
-========================================================= */
-
-/* Login background only */
-body.login-page{
-    background:
-        linear-gradient(rgba(5,15,35,.35), rgba(5,15,35,.45)),
-        url("bgimage.png") center/cover no-repeat fixed;
-    min-height:100vh;
-}
-
-/* Make login page fullscreen */
-body.login-page main{
-    max-width:none;
-    margin:0;
-    padding:0;
-}
-
-#view-login{
-    min-height:100vh;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    padding:2rem;
-}
-
-/* Glass card */
-#view-login .login-card{
-    width:100%;
-    max-width:700px;
-    padding:3rem;
-    border-radius:28px;
-    background:rgba(255,255,255,.12);
-    backdrop-filter:blur(22px);
-    -webkit-backdrop-filter:blur(22px);
-    border:1px solid rgba(255,255,255,.35);
-    box-shadow:
-        0 30px 80px rgba(0,0,0,.35),
-        inset 0 1px 1px rgba(255,255,255,.25);
-    text-align:center;
-    position:relative;
-    overflow:hidden;
-}
-
-/* soft glow */
-#view-login .login-card::before{
-    content:"";
-    position:absolute;
-    inset:-30%;
-    background:radial-gradient(circle at top right,
-        rgba(255,255,255,.16),
-        transparent 60%);
-}
-
-/* road icon */
-#view-login .login-card::after{
-    content:"🛣️";
-    position:absolute;
-    top:38px;
-    left:50%;
-    transform:translateX(-50%);
-    width:90px;
-    height:90px;
-    border-radius:50%;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-size:2.1rem;
-    background:#14213d;
-    color:white;
-    border:3px solid rgba(255,255,255,.2);
-    box-shadow:
-        0 0 0 12px rgba(255,255,255,.05),
-        0 0 30px rgba(120,170,255,.45);
-}
-
-#view-login .login-card>*{
-    position:relative;
-    z-index:2;
-}
-
-/* title */
-#view-login h1{
-    margin-top:110px;
-    color:white;
-    font-size:2.35rem;
-}
-
-#view-login p:first-of-type{
-    color:rgba(255,255,255,.88);
-    font-size:1.1rem;
-    margin:.8rem 0 1.8rem;
-}
-
-#view-login p:first-of-type::after{
-    content:"──────── 🛣️ ────────";
-    display:block;
-    margin-top:1rem;
-    color:rgba(255,255,255,.45);
-}
-
-/* labels */
-#view-login label{
-    color:white;
-    font-size:.95rem;
-}
-
-/* inputs */
-#view-login input{
-    background:rgba(255,255,255,.08);
-    border:1px solid rgba(255,255,255,.22);
-    border-radius:14px;
-    color:white;
-    padding:1rem;
-}
-
-#view-login input::placeholder{
-    color:rgba(255,255,255,.55);
-}
-
-#view-login input:focus{
-    outline:none;
-    border-color:#7dafff;
-    background:rgba(255,255,255,.12);
-    box-shadow:0 0 20px rgba(66,133,244,.35);
-}
-
-/* button */
-#view-login .btn-primary{
-    margin-top:.7rem;
-    background:linear-gradient(135deg,#0f4ed8,#467bff);
-    border:1px solid rgba(255,255,255,.2);
-    border-radius:14px;
-    padding:1rem;
-    font-size:1.05rem;
-    font-weight:700;
-    box-shadow:0 12px 28px rgba(37,99,235,.35);
-}
-
-#view-login .btn-primary:hover{
-    background:linear-gradient(135deg,#0c42b8,#356cff);
-}
-
-/* footer */
-#view-login .note{
-    color:rgba(255,255,255,.72);
-    margin-top:1.4rem;
-}
-
-#view-login .note::before{
-    content:"────── 🛡️ Secured by Supabase ──────";
-    display:block;
-    margin-bottom:1rem;
-    color:rgba(255,255,255,.45);
-}
-
-/* mobile */
-@media(max-width:768px){
-
-    #view-login{
-        padding:1rem;
-    }
-
-    #view-login .login-card{
-        padding:2rem 1.4rem;
-    }
-
-    #view-login .login-card::after{
-        width:72px;
-        height:72px;
-        font-size:1.7rem;
-    }
-
-    #view-login h1{
-        margin-top:90px;
-        font-size:1.8rem;
-    }
-
-    #view-login p:first-of-type::after{
-        content:"── 🛣️ ──";
+    .verification-actions button {
+        width: 100%;
     }
 }
