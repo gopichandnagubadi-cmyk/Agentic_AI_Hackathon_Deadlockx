@@ -1,47 +1,385 @@
+-- ============================================================
+-- SMART CITY / URBAN INFRASTRUCTURE
+-- FINAL NON-DESTRUCTIVE SUPABASE SETUP
+-- ============================================================
+-- IMPORTANT:
+-- This version does NOT drop existing application tables.
+-- It is intended for your already-created SmartCity database.
+-- ============================================================
+
+
+-- ============================================================
+-- 1. EXTENSIONS
+-- ============================================================
+
 create extension if not exists pgcrypto;
 
--- Remove unused duplicate tables from older schema versions. The application
--- uses the canonical tables documented below instead.
-drop table if exists public.complaint_status_history cascade;
-drop table if exists public.drainage_points cascade;
-drop table if exists public.repair_evidence cascade;
-drop table if exists public.road_segments cascade;
-drop table if exists public.waterlogging_hotspots cascade;
-drop table if exists public.contractors cascade;
-drop table if exists public.defects cascade;
 
--- Canonical application tables:
--- profiles            -> users and contractors, selected by role
--- complaints         -> reported road defects
--- work_orders        -> assignments and before/after repair evidence paths
--- status_history     -> complaint and work-order lifecycle history
--- drainage           -> drainage points used for spatial risk checks
--- waterlogging       -> waterlogging hotspots used for spatial risk checks
+-- ============================================================
+-- 2. ENSURE TABLES EXIST
+-- ============================================================
 
 create table if not exists public.profiles (
     id uuid primary key references auth.users(id) on delete cascade,
-    role text not null default 'citizen' check (role in ('citizen', 'officer', 'contractor')),
     full_name text,
+    role text not null default 'citizen'
+        check (role in ('citizen','officer','contractor')),
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
+
+create table if not exists public.drainage_points (
+    id uuid primary key default gen_random_uuid(),
+    name text,
+    type text default 'Storm Drain',
+    latitude double precision not null,
+    longitude double precision not null,
+    risk_level text default 'Medium'
+        check (risk_level in ('Low','Medium','High')),
     created_at timestamptz not null default now()
 );
+
+
+create table if not exists public.waterlogging_hotspots (
+    id uuid primary key default gen_random_uuid(),
+    name text,
+    latitude double precision not null,
+    longitude double precision not null,
+    risk_level text default 'Medium'
+        check (risk_level in ('Low','Medium','High')),
+    historical_frequency integer default 1,
+    created_at timestamptz not null default now()
+);
+
+
+create table if not exists public.road_segments (
+    id uuid primary key default gen_random_uuid(),
+    name text,
+    latitude double precision,
+    longitude double precision,
+    importance_score integer default 50
+        check (importance_score between 0 and 100),
+    created_at timestamptz not null default now()
+);
+
+
+create table if not exists public.complaints (
+    id uuid primary key default gen_random_uuid(),
+    complaint_id text unique not null,
+    user_id uuid references auth.users(id) on delete set null,
+    image_url text,
+    defect_type text,
+    severity text
+        check (severity in ('Normal','Medium','Very Serious')),
+    estimated_size_m2 double precision,
+    approximate_depth_cm double precision,
+    latitude double precision not null,
+    longitude double precision not null,
+    accuracy double precision,
+    locality text,
+    city text,
+    state text,
+    location_name text,
+    notes text,
+    water_risk text default 'Low'
+        check (water_risk in ('Low','Medium','High')),
+    drainage_nearby boolean default false,
+    nearest_drainage_distance_m double precision,
+    spatial_correlation boolean default false,
+    priority integer
+        check (priority between 0 and 100),
+    status text not null default 'Reported'
+        check (
+            status in (
+                'Reported',
+                'Reviewed',
+                'Assigned',
+                'In Progress',
+                'Completed Awaiting Verification',
+                'Reopened',
+                'Closed'
+            )
+        ),
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now(),
+    analyzed_at timestamptz
+);
+
+
+create table if not exists public.defects (
+    id uuid primary key default gen_random_uuid(),
+    complaint_id text unique
+        references public.complaints(complaint_id)
+        on delete cascade,
+    defect_type text,
+    severity text,
+    confidence numeric(5,2),
+    segmentation_note text,
+    estimated_size_m2 double precision,
+    approximate_depth_cm double precision,
+    created_at timestamptz not null default now()
+);
+
+
+create table if not exists public.contractors (
+    id uuid primary key default gen_random_uuid(),
+    profile_id uuid unique
+        references public.profiles(id)
+        on delete cascade,
+    company_name text,
+    specialization text,
+    active boolean not null default true,
+    created_at timestamptz not null default now()
+);
+
+
+create table if not exists public.work_orders (
+    id uuid primary key default gen_random_uuid(),
+    work_order_number text unique not null,
+    complaint_id text unique not null
+        references public.complaints(complaint_id)
+        on delete cascade,
+    contractor_id uuid
+        references public.profiles(id)
+        on delete set null,
+    assigned_by uuid
+        references public.profiles(id)
+        on delete set null,
+    status text not null default 'Assigned'
+        check (
+            status in (
+                'Assigned',
+                'Accepted',
+                'In Progress',
+                'Completed Awaiting Verification',
+                'Reopened',
+                'Closed'
+            )
+        ),
+    description text,
+    evidence_before_url text,
+    evidence_after_url text,
+    repair_latitude double precision,
+    repair_longitude double precision,
+    repair_accuracy double precision,
+    assigned_at timestamptz default now(),
+    accepted_at timestamptz,
+    started_at timestamptz,
+    completed_at timestamptz,
+    verified_at timestamptz,
+    verified_by uuid
+        references public.profiles(id)
+        on delete set null,
+    verification_note text,
+    repair_evidence boolean default false,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
+
+create table if not exists public.repair_evidence (
+    id uuid primary key default gen_random_uuid(),
+    work_order_id uuid not null
+        references public.work_orders(id)
+        on delete cascade,
+    before_image_url text,
+    after_image_url text,
+    captured_by uuid
+        references public.profiles(id)
+        on delete set null,
+    latitude double precision,
+    longitude double precision,
+    accuracy double precision,
+    captured_at timestamptz not null default now(),
+    notes text
+);
+
+
+create table if not exists public.duplicate_reports (
+    id uuid primary key default gen_random_uuid(),
+    complaint_id text
+        references public.complaints(complaint_id)
+        on delete cascade,
+    possible_duplicate_id text
+        references public.complaints(complaint_id)
+        on delete cascade,
+    distance_m double precision,
+    similarity_reason text,
+    created_at timestamptz not null default now()
+);
+
+
+-- Keep existing installations compatible with the current duplicate report shape.
+alter table public.duplicate_reports
+    add column if not exists complaint_id text;
+
+alter table public.duplicate_reports
+    add column if not exists possible_duplicate_id text;
+
+
+create table if not exists public.complaint_status_history (
+    id uuid primary key default gen_random_uuid(),
+    complaint_id text not null
+        references public.complaints(complaint_id)
+        on delete cascade,
+    old_status text,
+    new_status text not null,
+    changed_by uuid
+        references public.profiles(id)
+        on delete set null,
+    note text,
+    created_at timestamptz not null default now()
+);
+
+
+-- ============================================================
+-- 3. ADD MISSING COLUMNS IF YOUR EXISTING TABLES DON'T HAVE THEM
+-- ============================================================
+
+alter table public.profiles
+add column if not exists full_name text;
+
+alter table public.profiles
+add column if not exists role text default 'citizen';
+
+alter table public.profiles
+add column if not exists created_at timestamptz default now();
+
+alter table public.profiles
+add column if not exists updated_at timestamptz default now();
+
+
+alter table public.complaints
+add column if not exists locality text;
+
+alter table public.complaints
+add column if not exists city text;
+
+alter table public.complaints
+add column if not exists state text;
+
+alter table public.complaints
+add column if not exists location_name text;
+
+alter table public.complaints
+add column if not exists accuracy double precision;
+
+alter table public.complaints
+add column if not exists water_risk text default 'Low';
+
+alter table public.complaints
+add column if not exists drainage_nearby boolean default false;
+
+alter table public.complaints
+add column if not exists nearest_drainage_distance_m double precision;
+
+alter table public.complaints
+add column if not exists spatial_correlation boolean default false;
+
+alter table public.complaints
+add column if not exists priority integer;
+
+alter table public.complaints
+add column if not exists analyzed_at timestamptz;
+
+
+alter table public.work_orders
+add column if not exists evidence_before_url text;
+
+alter table public.work_orders
+add column if not exists evidence_after_url text;
+
+alter table public.work_orders
+add column if not exists description text;
+
+alter table public.work_orders
+add column if not exists repair_latitude double precision;
+
+alter table public.work_orders
+add column if not exists repair_longitude double precision;
+
+alter table public.work_orders
+add column if not exists repair_accuracy double precision;
+
+alter table public.work_orders
+add column if not exists accepted_at timestamptz;
+
+alter table public.work_orders
+add column if not exists started_at timestamptz;
+
+alter table public.work_orders
+add column if not exists completed_at timestamptz;
+
+alter table public.work_orders
+add column if not exists verified_at timestamptz;
+
+alter table public.work_orders
+add column if not exists verified_by uuid;
+
+alter table public.work_orders
+add column if not exists verification_note text;
+
+alter table public.work_orders
+add column if not exists repair_evidence boolean default false;
+
+
+-- ============================================================
+-- 4. AUTH -> PROFILE
+-- ============================================================
 
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
-security definer set search_path = public
+security definer
+set search_path = public
 as $$
 begin
-    insert into public.profiles (id, role)
-    values (new.id, 'citizen')
-    on conflict (id) do nothing;
+
+    insert into public.profiles (
+        id,
+        full_name,
+        role
+    )
+    values (
+        new.id,
+        coalesce(
+            new.raw_user_meta_data->>'full_name',
+            new.raw_user_meta_data->>'name',
+            new.email
+        ),
+        coalesce(
+            new.raw_user_meta_data->>'role',
+            'citizen'
+        )
+    )
+    on conflict (id)
+    do update set
+        full_name = coalesce(
+            excluded.full_name,
+            public.profiles.full_name
+        );
+
     return new;
+
 end;
 $$;
 
+
 drop trigger if exists on_auth_user_created on auth.users;
+
 create trigger on_auth_user_created
-    after insert on auth.users
-    for each row execute procedure public.handle_new_user();
+after insert on auth.users
+for each row
+execute function public.handle_new_user();
+
+
+-- ============================================================
+-- 5. ROLE CHECK FUNCTION
+-- IMPORTANT:
+-- DO NOT DROP THIS FUNCTION.
+-- Existing RLS policies depend on it.
+-- ============================================================
 
 create or replace function public.is_role(required_role text)
 returns boolean
@@ -51,688 +389,585 @@ security definer
 set search_path = public
 as $$
     select exists (
-        select 1 from public.profiles
+        select 1
+        from public.profiles
         where id = auth.uid()
-        and lower(trim(role)) = lower(trim(required_role))
+          and role = required_role
     );
 $$;
 
-revoke all on function public.is_role(text) from public;
-grant execute on function public.is_role(text) to authenticated;
 
-create table if not exists public.complaints (
-    id uuid primary key default gen_random_uuid(),
-    complaint_id text not null unique,
-    user_id uuid references auth.users(id) on delete set null,
-    image_url text,
-    latitude double precision not null,
-    longitude double precision not null,
-    accuracy double precision,
-    notes text,
-    status text not null default 'Reported',
-    created_at timestamptz not null default now()
-);
+-- ============================================================
+-- 6. COMPLAINT ANALYSIS ENGINE
+-- ============================================================
 
-alter table public.complaints add column if not exists complaint_id text;
-alter table public.complaints add column if not exists user_id uuid references auth.users(id) on delete set null;
-alter table public.complaints add column if not exists image_url text;
-alter table public.complaints add column if not exists latitude double precision;
-alter table public.complaints add column if not exists longitude double precision;
-alter table public.complaints add column if not exists accuracy double precision;
-alter table public.complaints add column if not exists notes text;
-alter table public.complaints add column if not exists status text default 'Reported';
-alter table public.complaints add column if not exists created_at timestamptz default now();
-alter table public.complaints add column if not exists defect_type text;
-alter table public.complaints add column if not exists severity text;
-alter table public.complaints add column if not exists estimated_size_m2 double precision;
-alter table public.complaints add column if not exists approximate_depth_cm double precision;
-alter table public.complaints add column if not exists locality text;
-alter table public.complaints add column if not exists city text;
-alter table public.complaints add column if not exists state text;
-alter table public.complaints add column if not exists priority integer;
-alter table public.complaints add column if not exists water_risk text;
-alter table public.complaints add column if not exists drainage_nearby boolean;
-alter table public.complaints add column if not exists nearest_drainage_distance_m double precision;
-alter table public.complaints add column if not exists spatial_correlation boolean;
-alter table public.complaints add column if not exists location_name text;
-alter table public.complaints add column if not exists analyzed_at timestamptz;
-alter table public.complaints add column if not exists updated_at timestamptz default now();
-
-create table if not exists public.complaint_locations (
-    complaint_id text primary key references public.complaints(complaint_id) on delete cascade,
-    locality text,
-    city text,
-    state text,
-    created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now()
-);
-
-create or replace function public.sync_complaint_location()
-returns trigger
-language plpgsql
-security definer set search_path = public
-as $$
-begin
-    insert into public.complaint_locations (complaint_id, locality, city, state)
-    values (new.complaint_id, new.locality, new.city, new.state)
-    on conflict (complaint_id) do update set
-        locality = excluded.locality,
-        city = excluded.city,
-        state = excluded.state,
-        updated_at = now();
-    return new;
-end;
-$$;
-
-drop trigger if exists complaints_sync_location on public.complaints;
-create trigger complaints_sync_location
-    after insert or update of complaint_id, locality, city, state on public.complaints
-    for each row execute procedure public.sync_complaint_location();
-
-insert into public.complaint_locations (complaint_id, locality, city, state)
-select complaint_id, locality, city, state
-from public.complaints
-where complaint_id is not null
-on conflict (complaint_id) do update set
-    locality = excluded.locality,
-    city = excluded.city,
-    state = excluded.state,
-    updated_at = now();
-
-create unique index if not exists complaints_complaint_id_key on public.complaints (complaint_id);
-
-create table if not exists public.work_orders (
-    id uuid primary key default gen_random_uuid(),
-    work_order_id text not null unique,
-    work_order_number text not null unique,
-    complaint_id text not null references public.complaints(complaint_id) on delete cascade,
-    contractor_id uuid references auth.users(id) on delete set null,
-    status text not null default 'Assigned',
-    evidence_before_url text,
-    evidence_after_url text,
-    repair_latitude double precision,
-    repair_longitude double precision,
-    repair_accuracy double precision,
-    repair_captured_at timestamptz,
-    created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now()
-);
-
--- Bring older installations up to the current work-order contract.
-alter table public.work_orders add column if not exists work_order_id text;
-alter table public.work_orders add column if not exists work_order_number text;
-alter table public.work_orders add column if not exists complaint_id text;
-alter table public.work_orders add column if not exists contractor_id uuid;
-alter table public.work_orders add column if not exists status text default 'Assigned';
-alter table public.work_orders add column if not exists evidence_before_url text;
-alter table public.work_orders add column if not exists evidence_after_url text;
-alter table public.work_orders add column if not exists repair_latitude double precision;
-alter table public.work_orders add column if not exists repair_longitude double precision;
-alter table public.work_orders add column if not exists repair_accuracy double precision;
-alter table public.work_orders add column if not exists repair_captured_at timestamptz;
-alter table public.work_orders add column if not exists created_at timestamptz default now();
-alter table public.work_orders add column if not exists updated_at timestamptz default now();
-
-update public.work_orders
-set work_order_id = 'WO-' || right(replace(gen_random_uuid()::text, '-', ''), 8)
-where work_order_id is null;
-
-update public.work_orders
-set work_order_number = work_order_id
-where work_order_number is null;
-
-alter table public.work_orders alter column work_order_id set not null;
-alter table public.work_orders alter column work_order_number set not null;
-create unique index if not exists work_orders_work_order_id_key
-    on public.work_orders (work_order_id);
-create unique index if not exists work_orders_work_order_number_key
-    on public.work_orders (work_order_number);
-
--- Existing installations may point contractor_id at a different contractor table.
--- The application selects contractors from profiles, whose IDs are auth user IDs.
-alter table public.work_orders
-    drop constraint if exists work_orders_contractor_id_fkey;
-alter table public.work_orders
-    add constraint work_orders_contractor_id_fkey
-    foreign key (contractor_id) references public.profiles(id)
-    on delete set null
-    not valid;
-
--- Normalize common legacy status values before enforcing the current lifecycle.
-update public.work_orders
-set status = case lower(trim(status))
-    when 'pending' then 'Assigned'
-    when 'assigned' then 'Assigned'
-    when 'accepted' then 'Accepted'
-    when 'in_progress' then 'In Progress'
-    when 'in-progress' then 'In Progress'
-    when 'in progress' then 'In Progress'
-    when 'completed' then 'Completed Awaiting Verification'
-    when 'repair completed' then 'Completed Awaiting Verification'
-    when 'completed awaiting verification' then 'Completed Awaiting Verification'
-    when 'reopened' then 'Reopened'
-    when 'verified' then 'Closed'
-    when 'closed' then 'Closed'
-    else status
-end
-where status is not null;
-
-alter table public.work_orders drop constraint if exists work_orders_status_check;
-alter table public.work_orders
-    add constraint work_orders_status_check
-    check (status in (
-        'Assigned',
-        'Accepted',
-        'In Progress',
-        'Completed Awaiting Verification',
-        'Reopened',
-        'Closed'
-    )) not valid;
-
--- Existing installations may have created work_orders.complaint_id as uuid.
--- Complaint IDs in this application are human-readable text values such as CR-123456.
-do $$
-declare
-    complaint_id_type text;
-begin
-    select data_type into complaint_id_type
-    from information_schema.columns
-    where table_schema = 'public'
-      and table_name = 'work_orders'
-      and column_name = 'complaint_id';
-
-    if complaint_id_type = 'uuid' then
-        alter table public.work_orders
-            drop constraint if exists work_orders_complaint_id_fkey;
-        alter table public.work_orders
-            alter column complaint_id type text using complaint_id::text;
-        update public.work_orders as work_order
-        set complaint_id = complaint.complaint_id
-        from public.complaints as complaint
-        where work_order.complaint_id = complaint.id::text;
-    end if;
-end;
-$$;
-
-create table if not exists public.drainage (
-    id uuid primary key default gen_random_uuid(),
-    latitude double precision not null,
-    longitude double precision not null,
-    type text not null,
-    risk text not null default 'Medium',
-    created_at timestamptz not null default now()
-);
-
-create table if not exists public.waterlogging (
-    id uuid primary key default gen_random_uuid(),
-    latitude double precision not null,
-    longitude double precision not null,
-    type text not null,
-    risk text not null default 'Medium',
-    created_at timestamptz not null default now()
-);
-
-create table if not exists public.status_history (
-    id uuid primary key default gen_random_uuid(),
-    complaint_id text references public.complaints(complaint_id) on delete cascade,
-    work_order_id uuid references public.work_orders(id) on delete cascade,
-    from_status text,
-    to_status text not null,
-    changed_by uuid not null default auth.uid() references auth.users(id) on delete set null,
-    created_at timestamptz not null default now(),
-    check (complaint_id is not null or work_order_id is not null)
-);
-
-do $$
-declare
-    complaint_id_type text;
-begin
-    select data_type into complaint_id_type
-    from information_schema.columns
-    where table_schema = 'public'
-      and table_name = 'status_history'
-      and column_name = 'complaint_id';
-
-    if complaint_id_type = 'uuid' then
-        alter table public.status_history
-            drop constraint if exists status_history_complaint_id_fkey;
-        alter table public.status_history
-            alter column complaint_id type text using complaint_id::text;
-        update public.status_history as history
-        set complaint_id = complaint.complaint_id
-        from public.complaints as complaint
-        where history.complaint_id = complaint.id::text;
-    end if;
-end;
-$$;
-
-do $$
-begin
-    if not exists (
-        select 1 from pg_constraint
-        where conname = 'work_orders_complaint_id_fkey'
-          and conrelid = 'public.work_orders'::regclass
-    ) then
-        alter table public.work_orders
-            add constraint work_orders_complaint_id_fkey
-            foreign key (complaint_id) references public.complaints(complaint_id)
-            on delete cascade;
-    end if;
-
-    if not exists (
-        select 1 from pg_constraint
-        where conname = 'status_history_complaint_id_fkey'
-          and conrelid = 'public.status_history'::regclass
-    ) then
-        alter table public.status_history
-            add constraint status_history_complaint_id_fkey
-            foreign key (complaint_id) references public.complaints(complaint_id)
-            on delete cascade;
-    end if;
-end;
-$$;
-
-create index if not exists complaints_user_id_idx on public.complaints (user_id);
-create index if not exists complaints_status_idx on public.complaints (status);
-create index if not exists work_orders_complaint_id_idx on public.work_orders (complaint_id);
-create index if not exists work_orders_contractor_id_idx on public.work_orders (contractor_id);
-create index if not exists status_history_complaint_id_idx on public.status_history (complaint_id);
-create index if not exists status_history_work_order_id_idx on public.status_history (work_order_id);
-
-create or replace function public.set_updated_at()
-returns trigger
-language plpgsql
-as $$
-begin
-    new.updated_at = now();
-    return new;
-end;
-$$;
-
-drop trigger if exists complaints_set_updated_at on public.complaints;
-create trigger complaints_set_updated_at
-    before update on public.complaints
-    for each row execute procedure public.set_updated_at();
-
-drop trigger if exists work_orders_set_updated_at on public.work_orders;
-create trigger work_orders_set_updated_at
-    before update on public.work_orders
-    for each row execute procedure public.set_updated_at();
-
-alter table public.profiles enable row level security;
-alter table public.complaints enable row level security;
-alter table public.work_orders enable row level security;
-alter table public.drainage enable row level security;
-alter table public.waterlogging enable row level security;
-alter table public.status_history enable row level security;
-alter table public.complaint_locations enable row level security;
-
-insert into storage.buckets (id, name, public)
-values ('road-evidence', 'road-evidence', false)
-on conflict (id) do update set public = false;
-
-drop policy if exists profiles_select_own on public.profiles;
-create policy profiles_select_own on public.profiles for select to authenticated
-using (id = auth.uid());
-
-drop policy if exists profiles_select_officer on public.profiles;
-create policy profiles_select_officer on public.profiles for select to authenticated
-using (public.is_role('officer'));
-
-drop policy if exists complaints_select_access on public.complaints;
-create policy complaints_select_access on public.complaints for select to authenticated
-using (
-    user_id = auth.uid()
-    or public.is_role('officer')
-    or exists (
-        select 1
-        from public.work_orders
-        where work_orders.complaint_id = complaints.complaint_id
-        and work_orders.contractor_id = auth.uid()
-    )
-);
-
-drop policy if exists complaints_insert_own on public.complaints;
-create policy complaints_insert_own on public.complaints for insert to authenticated
-with check (user_id = auth.uid());
-
-drop policy if exists complaints_update_access on public.complaints;
-create policy complaints_update_access on public.complaints for update to authenticated
-using (public.is_role('officer'));
-
-drop policy if exists complaint_locations_select_access on public.complaint_locations;
-create policy complaint_locations_select_access on public.complaint_locations for select to authenticated
-using (
-    exists (
-        select 1 from public.complaints
-        where complaints.complaint_id = complaint_locations.complaint_id
-        and (complaints.user_id = auth.uid() or public.is_role('officer'))
-    )
-);
-
-drop policy if exists work_orders_select_access on public.work_orders;
-create policy work_orders_select_access on public.work_orders for select to authenticated
-using (
-    contractor_id = auth.uid()
-    or public.is_role('officer')
-);
-
-drop policy if exists work_orders_insert_officer on public.work_orders;
-create policy work_orders_insert_officer on public.work_orders for insert to authenticated
-with check (public.is_role('officer'));
-
-drop policy if exists work_orders_update_access on public.work_orders;
-create policy work_orders_update_access on public.work_orders for update to authenticated
-using (
-    contractor_id = auth.uid()
-    or public.is_role('officer')
-);
-
-drop policy if exists drainage_select_authenticated on public.drainage;
-create policy drainage_select_authenticated on public.drainage for select to authenticated using (true);
-
-drop policy if exists waterlogging_select_authenticated on public.waterlogging;
-create policy waterlogging_select_authenticated on public.waterlogging for select to authenticated using (true);
-
-drop policy if exists status_history_select_access on public.status_history;
-create policy status_history_select_access on public.status_history for select to authenticated
-using (
-    public.is_role('officer')
-    or exists (
-        select 1 from public.complaints
-        where complaints.complaint_id = status_history.complaint_id
-        and complaints.user_id = auth.uid()
-    )
-);
-
-drop policy if exists storage_evidence_insert on storage.objects;
-create policy storage_evidence_insert on storage.objects
-for insert to authenticated
- with check (
-    bucket_id = 'road-evidence'
-    and (
-        (storage.foldername(name))[2] = auth.uid()::text
-        or (
-            (storage.foldername(name))[1] = 'complaints'
-            and exists (
-                select 1 from public.complaints
-                where complaints.complaint_id = (storage.foldername(name))[2]
-                and complaints.user_id = auth.uid()
-            )
-        )
-    )
- );
-
-drop policy if exists storage_evidence_select on storage.objects;
-create policy storage_evidence_select on storage.objects
-for select to authenticated
-using (
-    bucket_id = 'road-evidence'
-    and (
-    (storage.foldername(name))[2] = auth.uid()::text
-        or (
-            (storage.foldername(name))[1] = 'complaints'
-            and exists (
-                select 1 from public.complaints
-                where complaints.complaint_id = (storage.foldername(name))[2]
-                and complaints.user_id = auth.uid()
-            )
-        )
-        or public.is_role('officer')
-        or (
-            (storage.foldername(name))[1] = 'complaints'
-            and exists (
-                select 1
-                from public.work_orders
-                where work_orders.complaint_id = split_part(storage.filename(name), '.', 1)
-                and work_orders.contractor_id = auth.uid()
-            )
-        )
-    )
-);
-
-drop policy if exists storage_evidence_update on storage.objects;
-create policy storage_evidence_update on storage.objects
-for update to authenticated
-using (
-    bucket_id = 'road-evidence'
-    and (
-        (storage.foldername(name))[2] = auth.uid()::text
-        or (
-            (storage.foldername(name))[1] = 'complaints'
-            and exists (
-                select 1 from public.complaints
-                where complaints.complaint_id = (storage.foldername(name))[2]
-                and complaints.user_id = auth.uid()
-            )
-        )
-        or public.is_role('officer')
-    )
-);
-
-create or replace function public.transition_complaint(
-    target_complaint_id text,
-    next_status text
-)
-returns public.complaints
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-    current_record public.complaints;
-    result_record public.complaints;
-    allowed boolean;
-begin
-    select * into current_record
-    from public.complaints
-    where complaint_id = target_complaint_id
-    for update;
-
-    if current_record.id is null then
-        raise exception 'Complaint not found';
-    end if;
-
-    allowed :=
-        (next_status = 'Under Review' and current_record.status = 'Reported' and public.is_role('officer'))
-        or (next_status = 'Verified' and current_record.status in ('Reported', 'Under Review', 'Analyzed') and public.is_role('officer'))
-        or (next_status = 'Work Order Created' and current_record.status = 'Verified' and public.is_role('officer'))
-        or (next_status = 'Contractor Assigned' and current_record.status = 'Work Order Created' and public.is_role('officer'))
-        or (next_status = 'Closed' and current_record.status in ('Completed Awaiting Verification', 'Verified') and public.is_role('officer'))
-        or (next_status = 'Reopened' and current_record.status in ('Closed', 'Completed Awaiting Verification') and public.is_role('officer'));
-
-    if not allowed then
-        raise exception 'You are not allowed to make this status transition';
-    end if;
-
-    update public.complaints
-    set status = next_status,
-        analyzed_at = case when next_status = 'Analyzed' then now() else analyzed_at end
-    where complaint_id = target_complaint_id
-    returning * into result_record;
-
-    insert into public.status_history (complaint_id, from_status, to_status)
-    values (target_complaint_id, current_record.status, next_status);
-
-    return result_record;
-end;
-$$;
-
-revoke all on function public.transition_complaint(text, text) from public;
-grant execute on function public.transition_complaint(text, text) to authenticated;
-
-drop function if exists public.save_complaint_analysis(text, text, text, integer, text, boolean);
-
-create or replace function public.save_complaint_analysis(
-    target_complaint_id text,
-    target_defect_type text,
-    target_severity text,
-    target_priority integer,
-    target_water_risk text,
-    target_drainage_nearby boolean,
-    target_estimated_size_m2 double precision,
-    target_approximate_depth_cm double precision
-)
-returns public.complaints
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-    result_record public.complaints;
-    previous_status text;
-    nearest_distance double precision;
-    nearby_water_risk text;
-    calculated_severity text;
-    calculated_priority integer;
-begin
-        select status into previous_status
-        from public.complaints
-        where complaint_id = target_complaint_id
-            and user_id = auth.uid()
-        for update;
-
-    select min(6371000 * 2 * asin(sqrt(
-        power(sin(radians((drainage.latitude - complaint.latitude) / 2)), 2)
-        + cos(radians(complaint.latitude)) * cos(radians(drainage.latitude))
-        * power(sin(radians((drainage.longitude - complaint.longitude) / 2)), 2)
-    ))) into nearest_distance
-    from public.complaints complaint
-    cross join public.drainage
-    where complaint.complaint_id = target_complaint_id;
-
-    select case when exists (
-        select 1
-        from public.complaints complaint
-        cross join public.waterlogging hotspot
-        where complaint.complaint_id = target_complaint_id
-          and 6371000 * 2 * asin(sqrt(
-              power(sin(radians((hotspot.latitude - complaint.latitude) / 2)), 2)
-              + cos(radians(complaint.latitude)) * cos(radians(hotspot.latitude))
-              * power(sin(radians((hotspot.longitude - complaint.longitude) / 2)), 2)
-          )) <= 250
-          and upper(hotspot.risk) = 'HIGH'
-    ) then 'High' else 'Medium' end into nearby_water_risk;
-
-    calculated_severity := case
-        when target_estimated_size_m2 >= 2 or target_approximate_depth_cm >= 15 then 'High'
-        when target_estimated_size_m2 >= 0.5 or target_approximate_depth_cm >= 8 then 'Medium'
-        else 'Low'
-    end;
-
-    calculated_priority := least(100, greatest(0,
-        case when calculated_severity = 'High' then 55
-             when calculated_severity = 'Medium' then 35 else 20 end
-        + case when nearby_water_risk = 'High' then 25 else 10 end
-        + case when nearest_distance <= 100 then 20 when nearest_distance <= 250 then 10 else 0 end
-    ));
-
-    update public.complaints
-    set defect_type = target_defect_type,
-        severity = calculated_severity,
-        estimated_size_m2 = target_estimated_size_m2,
-        approximate_depth_cm = target_approximate_depth_cm,
-        priority = calculated_priority,
-        water_risk = nearby_water_risk,
-        drainage_nearby = nearest_distance <= 250,
-        nearest_drainage_distance_m = nearest_distance,
-        spatial_correlation = nearest_distance <= 250 or nearby_water_risk = 'High',
-        analyzed_at = now(),
-        status = 'Analyzed'
-    where complaint_id = target_complaint_id
-      and user_id = auth.uid()
-    returning * into result_record;
-
-    if result_record.id is null then
-        raise exception 'Complaint not found or not owned by current user';
-    end if;
-
-    insert into public.status_history (complaint_id, from_status, to_status)
-    values (target_complaint_id, previous_status, 'Analyzed');
-
-    return result_record;
-end;
-$$;
-
-revoke all on function public.save_complaint_analysis(text, text, text, integer, text, boolean, double precision, double precision) from public;
-grant execute on function public.save_complaint_analysis(text, text, text, integer, text, boolean, double precision, double precision) to authenticated;
-
-create or replace function public.prepare_complaint_for_review(
+create or replace function public.analyze_complaint(
     target_complaint_id text
 )
-returns public.complaints
+returns json
 language plpgsql
 security definer
 set search_path = public
 as $$
+
 declare
-    result_record public.complaints;
-    nearest_distance double precision;
-    nearby_water_risk text;
-    calculated_priority integer;
-    previous_status text;
+    c public.complaints;
+    d record;
+
+    dist_d double precision;
+    dist_w double precision;
+
+    wr text;
+    sev text;
+
+    dup boolean := false;
+    score integer;
+
+    sz double precision;
+    dep double precision;
+
 begin
-    if not public.is_role('officer') then
-        raise exception 'Only officers can prepare complaints for review';
-    end if;
 
-    select status into previous_status
+    select *
+    into c
     from public.complaints
-    where complaint_id = target_complaint_id
-    for update;
+    where complaint_id = target_complaint_id;
 
-    if previous_status is null then
+    if not found then
         raise exception 'Complaint not found';
     end if;
 
-    select min(6371000 * 2 * asin(sqrt(
-        power(sin(radians((drainage.latitude - complaint.latitude) / 2)), 2)
-        + cos(radians(complaint.latitude)) * cos(radians(drainage.latitude))
-        * power(sin(radians((drainage.longitude - complaint.longitude) / 2)), 2)
-    ))) into nearest_distance
-    from public.complaints complaint
-    cross join public.drainage
-    where complaint.complaint_id = target_complaint_id;
 
-    select case when exists (
-        select 1 from public.complaints complaint
-        cross join public.waterlogging hotspot
-        where complaint.complaint_id = target_complaint_id
-          and 6371000 * 2 * asin(sqrt(
-              power(sin(radians((hotspot.latitude - complaint.latitude) / 2)), 2)
-              + cos(radians(complaint.latitude)) * cos(radians(hotspot.latitude))
-              * power(sin(radians((hotspot.longitude - complaint.longitude) / 2)), 2)
-          )) <= 250
-          and upper(hotspot.risk) = 'HIGH'
-    ) then 'High' else 'Medium' end into nearby_water_risk;
+    -- Find nearest drainage point
+    select
+        dp.*,
+        (
+            6371000 * acos(
+                least(
+                    1,
+                    cos(radians(c.latitude))
+                    * cos(radians(dp.latitude))
+                    * cos(
+                        radians(dp.longitude)
+                        - radians(c.longitude)
+                    )
+                    + sin(radians(c.latitude))
+                    * sin(radians(dp.latitude))
+                )
+            )
+        ) as distance
+    into d
+    from public.drainage_points dp
+    order by distance
+    limit 1;
 
-    calculated_priority := least(100, greatest(0,
-        55 + case when nearby_water_risk = 'High' then 25 else 10 end
-        + case when nearest_distance <= 100 then 20 when nearest_distance <= 250 then 10 else 0 end
-    ));
+
+    dist_d := coalesce(d.distance, 999999);
+
+
+    if dist_d <= 100 then
+
+        c.drainage_nearby := true;
+        c.nearest_drainage_distance_m := dist_d;
+
+    else
+
+        c.drainage_nearby := false;
+        c.nearest_drainage_distance_m := dist_d;
+
+    end if;
+
+
+    -- Find nearest waterlogging hotspot
+    select
+        (
+            6371000 * acos(
+                least(
+                    1,
+                    cos(radians(c.latitude))
+                    * cos(radians(wh.latitude))
+                    * cos(
+                        radians(wh.longitude)
+                        - radians(c.longitude)
+                    )
+                    + sin(radians(c.latitude))
+                    * sin(radians(wh.latitude))
+                )
+            )
+        ),
+        wh.risk_level
+
+    into dist_w, wr
+
+    from public.waterlogging_hotspots wh
+
+    order by 1
+
+    limit 1;
+
+
+    if coalesce(wr,'Low') = 'High'
+       and coalesce(dist_w,999999) <= 500 then
+
+        c.spatial_correlation := true;
+        c.water_risk := 'High';
+
+    elsif coalesce(wr,'Low') = 'Medium'
+       and coalesce(dist_w,999999) <= 500 then
+
+        c.spatial_correlation := true;
+        c.water_risk := 'Medium';
+
+    else
+
+        c.spatial_correlation := false;
+        c.water_risk := 'Low';
+
+    end if;
+
+
+    -- Prototype severity estimation
+    sz :=
+        case
+            when lower(coalesce(c.notes,'')) ~
+                 '(large|huge|deep|dangerous)'
+            then 2.5
+            else 1.2
+        end;
+
+
+    dep :=
+        case
+            when lower(coalesce(c.notes,'')) ~
+                 '(deep|dangerous)'
+            then 15
+            else 7
+        end;
+
+
+    if c.water_risk = 'High'
+       or dep >= 15
+       or sz >= 2.5 then
+
+        sev := 'Very Serious';
+
+    elsif c.water_risk = 'Medium'
+       or dep >= 10
+       or sz >= 1.8 then
+
+        sev := 'Medium';
+
+    else
+
+        sev := 'Normal';
+
+    end if;
+
+
+    -- Duplicate detection
+    select exists (
+
+        select 1
+
+        from public.complaints x
+
+        where x.complaint_id <> c.complaint_id
+
+        and sqrt(
+            power(
+                (x.latitude - c.latitude) * 111000,
+                2
+            )
+            +
+            power(
+                (x.longitude - c.longitude)
+                * 111000
+                * cos(radians(c.latitude)),
+                2
+            )
+        ) < 75
+
+        and x.status <> 'Closed'
+
+    )
+    into dup;
+
+
+    -- Maintenance priority score
+    score :=
+        least(
+            100,
+            greatest(
+                0,
+
+                (
+                    case sev
+                        when 'Very Serious' then 65
+                        when 'Medium' then 40
+                        else 20
+                    end
+                )
+
+                +
+
+                (
+                    case c.water_risk
+                        when 'High' then 20
+                        when 'Medium' then 10
+                        else 0
+                    end
+                )
+
+                +
+
+                (
+                    case
+                        when c.drainage_nearby then 8
+                        else 0
+                    end
+                )
+
+                +
+
+                (
+                    case
+                        when dup then 5
+                        else 0
+                    end
+                )
+
+            )
+        );
+
 
     update public.complaints
-    set defect_type = coalesce(defect_type, 'Road defect - field verification required'),
-        severity = coalesce(severity, 'High'),
-        priority = coalesce(priority, calculated_priority),
-        water_risk = coalesce(water_risk, nearby_water_risk),
-        drainage_nearby = coalesce(drainage_nearby, nearest_distance <= 250),
-        nearest_drainage_distance_m = coalesce(nearest_drainage_distance_m, nearest_distance),
-        spatial_correlation = coalesce(spatial_correlation, nearest_distance <= 250 or nearby_water_risk = 'High'),
-        status = 'Under Review',
-        analyzed_at = coalesce(analyzed_at, now())
-    where complaint_id = target_complaint_id
-    returning * into result_record;
 
-    insert into public.status_history (complaint_id, from_status, to_status)
-    values (target_complaint_id, previous_status, 'Under Review');
+    set
+        defect_type =
+            coalesce(defect_type,'Pothole'),
 
-    return result_record;
+        severity = sev,
+
+        estimated_size_m2 = sz,
+
+        approximate_depth_cm = dep,
+
+        water_risk = c.water_risk,
+
+        drainage_nearby = c.drainage_nearby,
+
+        nearest_drainage_distance_m =
+            c.nearest_drainage_distance_m,
+
+        spatial_correlation =
+            c.spatial_correlation,
+
+        priority = score,
+
+        analyzed_at = now(),
+
+        updated_at = now()
+
+    where complaint_id = c.complaint_id;
+
+
+    insert into public.defects (
+        complaint_id,
+        defect_type,
+        severity,
+        confidence,
+        segmentation_note,
+        estimated_size_m2,
+        approximate_depth_cm
+    )
+
+    values (
+        c.complaint_id,
+        coalesce(c.defect_type,'Pothole'),
+        sev,
+        94,
+        'Prototype segmentation estimate',
+        sz,
+        dep
+    )
+
+    on conflict (complaint_id)
+
+    do update set
+
+        defect_type =
+            excluded.defect_type,
+
+        severity =
+            excluded.severity,
+
+        confidence =
+            excluded.confidence,
+
+        estimated_size_m2 =
+            excluded.estimated_size_m2,
+
+        approximate_depth_cm =
+            excluded.approximate_depth_cm;
+
+
+    return json_build_object(
+
+        'complaint_id',
+        c.complaint_id,
+
+        'defect_type',
+        coalesce(c.defect_type,'Pothole'),
+
+        'severity',
+        sev,
+
+        'estimated_size_m2',
+        sz,
+
+        'approximate_depth_cm',
+        dep,
+
+        'water_risk',
+        c.water_risk,
+
+        'drainage_nearby',
+        c.drainage_nearby,
+
+        'nearest_drainage_distance_m',
+        c.nearest_drainage_distance_m,
+
+        'duplicate_found',
+        dup,
+
+        'priority',
+        score
+
+    );
+
 end;
 $$;
 
-revoke all on function public.prepare_complaint_for_review(text) from public;
-grant execute on function public.prepare_complaint_for_review(text) to authenticated;
+
+-- ============================================================
+-- 7. CREATE WORK ORDER
+-- OFFICER -> CONTRACTOR
+-- ============================================================
+
+create or replace function public.create_work_order(
+    target_complaint_id text,
+    target_contractor_id uuid
+)
+returns public.work_orders
+language plpgsql
+security definer
+set search_path = public
+as $$
+
+declare
+    c public.complaints;
+    w public.work_orders;
+
+begin
+
+    if not public.is_role('officer') then
+        raise exception
+            'Only municipal officers can assign work';
+    end if;
+
+
+    select *
+    into c
+    from public.complaints
+    where complaint_id = target_complaint_id;
+
+
+    if not found then
+        raise exception 'Complaint not found';
+    end if;
+
+
+    if not exists (
+        select 1
+        from public.profiles
+        where id = target_contractor_id
+          and role = 'contractor'
+    ) then
+
+        raise exception 'Invalid contractor';
+
+    end if;
+
+
+    insert into public.work_orders (
+        work_order_number,
+        complaint_id,
+        contractor_id,
+        assigned_by,
+        status,
+        description,
+        evidence_before_url
+    )
+
+    values (
+        'WO-' ||
+        upper(
+            right(
+                replace(
+                    gen_random_uuid()::text,
+                    '-',
+                    ''
+                ),
+                8
+            )
+        ),
+
+        c.complaint_id,
+
+        target_contractor_id,
+
+        auth.uid(),
+
+        'Assigned',
+
+        'Repair reported urban infrastructure defect',
+
+        c.image_url
+    )
+
+    returning *
+    into w;
+
+
+    update public.complaints
+
+    set
+        status = 'Assigned',
+        updated_at = now()
+
+    where complaint_id = c.complaint_id;
+
+
+    insert into public.complaint_status_history (
+        complaint_id,
+        old_status,
+        new_status,
+        changed_by
+    )
+
+    values (
+        c.complaint_id,
+        c.status,
+        'Assigned',
+        auth.uid()
+    );
+
+
+    return w;
+
+end;
+$$;
+
+
+-- ============================================================
+-- 8. CONTRACTOR SUBMITS REPAIR EVIDENCE
+-- ============================================================
+
+create or replace function public.submit_repair_evidence(
+    target_work_order_id uuid,
+    target_after_url text
+)
+returns public.work_orders
+language plpgsql
+security definer
+set search_path = public
+as $$
+
+declare
+    w public.work_orders;
+
+begin
+
+    select *
+    into w
+    from public.work_orders
+    where id = target_work_order_id
+      and contractor_id = auth.uid();
+
+
+    if not found then
+        raise exception
+            'Work order not assigned to this contractor';
+    end if;
+
+
+    if w.status not in (
+        'In Progress',
+        'Accepted',
+        'Reopened'
+    ) then
+
+        raise exception
+            'Work order is not ready for completion';
+
+    end if;
+
+
+    update public.work_orders
+
+    set
+        evidence_after_url = target_after_url,
+
+        status =
+            'Completed Awaiting Verification',
+
+        completed_at = now(),
+
+        repair_evidence = true,
+
+        updated_at = now()
+
+    where id = w.id
+
+    returning *
+    into w;
+
+
+    update public.complaints
+
+    set
+        status =
+            'Completed Awaiting Verification',
+
+        updated_at = now()
+
+    where complaint_id = w.complaint_id;
+
+
+    insert into public.repair_evidence (
+        work_order_id,
+        before_image_url,
+        after_image_url,
+        captured_by
+    )
+
+    values (
+        w.id,
+        w.evidence_before_url,
+        target_after_url,
+        auth.uid()
+    );
+
+
+    return w;
+
+end;
+$$;
+
+
+-- ============================================================
+-- 9. WORK ORDER LIFECYCLE
+-- ============================================================
 
 create or replace function public.transition_work_order(
     target_work_order_id uuid,
@@ -743,254 +978,879 @@ language plpgsql
 security definer
 set search_path = public
 as $$
-declare
-    current_record public.work_orders;
-    result_record public.work_orders;
-    allowed boolean;
-begin
-    select * into current_record
-    from public.work_orders
-    where id = target_work_order_id
-    for update;
 
-    if current_record.id is null then
+declare
+    w public.work_orders;
+    old_status text;
+
+begin
+
+    select *
+    into w
+    from public.work_orders
+    where id = target_work_order_id;
+
+
+    if not found then
         raise exception 'Work order not found';
     end if;
 
-    allowed :=
-        (next_status = 'Accepted' and lower(trim(current_record.status)) in ('assigned', 'reopened') and current_record.contractor_id = auth.uid() and public.is_role('contractor'))
-        or (next_status = 'In Progress' and current_record.status = 'Accepted' and current_record.contractor_id = auth.uid())
-        or (next_status = 'Completed Awaiting Verification' and current_record.status = 'In Progress' and current_record.contractor_id = auth.uid() and current_record.evidence_after_url is not null)
-        or (next_status = 'Reopened' and lower(trim(current_record.status)) in ('completed awaiting verification', 'repair completed', 'completed', 'awaiting verification') and public.is_role('officer'))
-        or (next_status = 'Closed' and lower(trim(current_record.status)) in ('completed awaiting verification', 'repair completed', 'completed', 'awaiting verification') and public.is_role('officer'))
-        or (next_status = 'Assigned' and public.is_role('officer'));
 
-    if not allowed then
-        raise exception 'Transition denied. Current status: %, requested status: %, signed-in user: %', current_record.status, next_status, auth.uid();
-    end if;
+    old_status := w.status;
 
-    update public.work_orders
-    set status = next_status
-    where id = target_work_order_id
-    returning * into result_record;
 
-    if next_status = 'Completed Awaiting Verification' then
+    -- Contractor accepts assignment
+    if next_status = 'Accepted'
+       and w.contractor_id = auth.uid()
+       and old_status = 'Assigned' then
+
+
+        update public.work_orders
+
+        set
+            status = 'Accepted',
+            accepted_at = now(),
+            updated_at = now()
+
+        where id = w.id
+
+        returning *
+        into w;
+
+
+    -- Contractor starts work
+    elsif next_status = 'In Progress'
+          and w.contractor_id = auth.uid()
+          and old_status in ('Accepted','Reopened') then
+
+
+        update public.work_orders
+
+        set
+            status = 'In Progress',
+            started_at = now(),
+            updated_at = now()
+
+        where id = w.id
+
+        returning *
+        into w;
+
+
+    -- Officer approves completed work
+    elsif next_status = 'Closed'
+          and public.is_role('officer')
+          and old_status =
+              'Completed Awaiting Verification'
+          and w.evidence_after_url is not null then
+
+
+        update public.work_orders
+
+        set
+            status = 'Closed',
+            verified_at = now(),
+            verified_by = auth.uid(),
+            updated_at = now()
+
+        where id = w.id
+
+        returning *
+        into w;
+
+
         update public.complaints
-        set status = 'Completed Awaiting Verification'
-        where complaint_id = current_record.complaint_id;
-        insert into public.status_history (complaint_id, from_status, to_status)
-        values (current_record.complaint_id, current_record.status, 'Completed Awaiting Verification');
-    elsif next_status = 'Closed' then
+
+        set
+            status = 'Closed',
+            updated_at = now()
+
+        where complaint_id = w.complaint_id;
+
+
+    -- Officer rejects completed work
+    elsif next_status = 'Reopened'
+          and public.is_role('officer')
+          and old_status =
+              'Completed Awaiting Verification' then
+
+
+        update public.work_orders
+
+        set
+            status = 'Reopened',
+            verification_note =
+                'Officer requested rework',
+            updated_at = now()
+
+        where id = w.id
+
+        returning *
+        into w;
+
+
         update public.complaints
-        set status = 'Closed'
-        where complaint_id = current_record.complaint_id;
-        insert into public.status_history (complaint_id, from_status, to_status)
-        values (current_record.complaint_id, current_record.status, 'Closed');
-    elsif next_status = 'Reopened' then
-        update public.complaints
-        set status = 'Reopened'
-        where complaint_id = current_record.complaint_id;
-        insert into public.status_history (complaint_id, from_status, to_status)
-        values (current_record.complaint_id, current_record.status, 'Reopened');
+
+        set
+            status = 'Reopened',
+            updated_at = now()
+
+        where complaint_id = w.complaint_id;
+
+
+    else
+
+        raise exception
+            'Invalid lifecycle transition';
+
     end if;
 
-    insert into public.status_history (work_order_id, from_status, to_status)
-    values (target_work_order_id, current_record.status, next_status);
 
-    return result_record;
+    insert into public.complaint_status_history (
+        complaint_id,
+        old_status,
+        new_status,
+        changed_by
+    )
+
+    values (
+        w.complaint_id,
+        old_status,
+        w.status,
+        auth.uid()
+    );
+
+
+    return w;
+
 end;
 $$;
 
-revoke all on function public.transition_work_order(uuid, text) from public;
-grant execute on function public.transition_work_order(uuid, text) to authenticated;
 
-create or replace function public.submit_work_order_completion(
-    target_work_order_id uuid,
-    captured_latitude double precision,
-    captured_longitude double precision,
-    captured_accuracy double precision,
-    captured_image_path text
+-- ============================================================
+-- 10. ENABLE RLS
+-- ============================================================
+
+alter table public.profiles enable row level security;
+
+alter table public.complaints enable row level security;
+
+alter table public.defects enable row level security;
+
+alter table public.drainage_points enable row level security;
+
+alter table public.waterlogging_hotspots enable row level security;
+
+alter table public.road_segments enable row level security;
+
+alter table public.contractors enable row level security;
+
+alter table public.work_orders enable row level security;
+
+alter table public.repair_evidence enable row level security;
+
+alter table public.duplicate_reports enable row level security;
+
+alter table public.complaint_status_history enable row level security;
+
+
+-- ============================================================
+-- 11. REMOVE ONLY OLD POLICIES
+-- DO NOT DROP TABLES
+-- DO NOT DROP is_role()
+-- ============================================================
+
+drop policy if exists profiles_select_authenticated
+on public.profiles;
+
+drop policy if exists profiles_insert_own
+on public.profiles;
+
+drop policy if exists profiles_update_own
+on public.profiles;
+
+
+drop policy if exists complaints_insert_citizen
+on public.complaints;
+
+drop policy if exists complaints_select_owner_officer_contractor
+on public.complaints;
+
+drop policy if exists complaints_select_owner_or_officer
+on public.complaints;
+
+drop policy if exists complaints_update_officer
+on public.complaints;
+
+
+drop policy if exists defects_select_authenticated
+on public.defects;
+
+drop policy if exists infra_select_authenticated
+on public.drainage_points;
+
+drop policy if exists drainage_select_authenticated
+on public.drainage_points;
+
+drop policy if exists water_select_authenticated
+on public.waterlogging_hotspots;
+
+drop policy if exists waterlogging_select_authenticated
+on public.waterlogging_hotspots;
+
+drop policy if exists road_select_authenticated
+on public.road_segments;
+
+drop policy if exists roads_select_authenticated
+on public.road_segments;
+
+drop policy if exists contractor_profiles_select
+on public.contractors;
+
+drop policy if exists contractors_select_authenticated
+on public.contractors;
+
+
+drop policy if exists work_orders_select_participants
+on public.work_orders;
+
+drop policy if exists work_select_participants
+on public.work_orders;
+
+drop policy if exists repair_evidence_select_participants
+on public.repair_evidence;
+
+drop policy if exists repair_select_participants
+on public.repair_evidence;
+
+drop policy if exists duplicate_reports_select_participants
+on public.duplicate_reports;
+
+drop policy if exists duplicate_select_participants
+on public.duplicate_reports;
+
+drop policy if exists complaint_history_select_participants
+on public.complaint_status_history;
+
+drop policy if exists history_select_participants
+on public.complaint_status_history;
+
+
+-- ============================================================
+-- 12. PROFILES POLICIES
+-- ============================================================
+
+create policy profiles_select_authenticated
+
+on public.profiles
+
+for select
+
+to authenticated
+
+using (true);
+
+
+create policy profiles_insert_own
+
+on public.profiles
+
+for insert
+
+to authenticated
+
+with check (
+    id = auth.uid()
+);
+
+
+create policy profiles_update_own
+
+on public.profiles
+
+for update
+
+to authenticated
+
+using (
+    id = auth.uid()
 )
-returns public.work_orders
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-    work_order_record public.work_orders;
-    complaint_record public.complaints;
-    distance_m double precision;
-    result_record public.work_orders;
-begin
-    select * into work_order_record
-    from public.work_orders
-    where id = target_work_order_id
-      and contractor_id = auth.uid()
-    for update;
 
-    if work_order_record.id is null or lower(trim(work_order_record.status)) <> 'in progress' then
-        raise exception 'Work order is not assigned to the current contractor or is not in progress';
-    end if;
+with check (
+    id = auth.uid()
+);
 
-    if captured_image_path is null or captured_image_path = '' then
-        raise exception 'A camera-captured repair image is required';
-    end if;
 
-    select * into complaint_record
-    from public.complaints
-    where complaint_id = work_order_record.complaint_id;
+-- ============================================================
+-- 13. COMPLAINT POLICIES
+-- ============================================================
 
-    distance_m := 6371000 * 2 * asin(sqrt(
-        power(sin(radians((captured_latitude - complaint_record.latitude) / 2)), 2)
-        + cos(radians(complaint_record.latitude)) * cos(radians(captured_latitude))
-        * power(sin(radians((captured_longitude - complaint_record.longitude) / 2)), 2)
-    ));
+create policy complaints_insert_citizen
 
-    if distance_m > 25 then
-        raise exception 'Repair location is % meters from the complaint location; move to the pothole before submitting', round(distance_m)::text;
-    end if;
+on public.complaints
 
-    update public.work_orders
-    set evidence_after_url = captured_image_path,
-        repair_latitude = captured_latitude,
-        repair_longitude = captured_longitude,
-        repair_accuracy = captured_accuracy,
-        repair_captured_at = now(),
-        status = 'Completed Awaiting Verification'
-    where id = target_work_order_id
-    returning * into result_record;
+for insert
 
-    update public.complaints
-    set status = 'Completed Awaiting Verification'
-    where complaint_id = work_order_record.complaint_id;
+to authenticated
 
-    insert into public.status_history (work_order_id, from_status, to_status)
-    values (target_work_order_id, work_order_record.status, 'Completed Awaiting Verification');
-    insert into public.status_history (complaint_id, from_status, to_status)
-    values (work_order_record.complaint_id, 'In Progress', 'Completed Awaiting Verification');
+with check (
+    user_id = auth.uid()
+    and public.is_role('citizen')
+);
 
-    return result_record;
-end;
-$$;
 
-revoke all on function public.submit_work_order_completion(uuid, double precision, double precision, double precision, text) from public;
-grant execute on function public.submit_work_order_completion(uuid, double precision, double precision, double precision, text) to authenticated;
+create policy complaints_select_owner_officer_contractor
 
-create or replace function public.create_work_order_for_complaint(
-    target_complaint_id text
+on public.complaints
+
+for select
+
+to authenticated
+
+using (
+
+    user_id = auth.uid()
+
+    or public.is_role('officer')
+
+    or exists (
+
+        select 1
+
+        from public.work_orders w
+
+        where w.complaint_id =
+              complaints.complaint_id
+
+        and w.contractor_id =
+            auth.uid()
+
+    )
+
+);
+
+
+create policy complaints_update_officer
+
+on public.complaints
+
+for update
+
+to authenticated
+
+using (
+    public.is_role('officer')
 )
-returns public.work_orders
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-    result_record public.work_orders;
-    previous_status text;
-    generated_work_order_number text;
-begin
-    if not public.is_role('officer') then
-        raise exception 'Only officers can create work orders';
-    end if;
 
-    select status into previous_status
-    from public.complaints
-    where complaint_id = target_complaint_id
-    for update;
+with check (
+    public.is_role('officer')
+);
 
-    if previous_status is null then
-        raise exception 'Complaint not found';
-    end if;
 
-    if previous_status <> 'Verified' then
-        raise exception 'Complaint must be verified before work can be created';
-    end if;
+-- ============================================================
+-- 14. DEFECTS
+-- ============================================================
 
-    generated_work_order_number := 'WO-' || right(replace(gen_random_uuid()::text, '-', ''), 8);
+create policy defects_select_authenticated
 
-        insert into public.work_orders (work_order_id, work_order_number, complaint_id, status)
-    values (generated_work_order_number,
-            generated_work_order_number,
-            target_complaint_id,
-            'Assigned')
-    returning * into result_record;
+on public.defects
 
-    update public.complaints
-    set status = 'Work Order Created'
-    where complaint_id = target_complaint_id;
+for select
 
-    insert into public.status_history (complaint_id, from_status, to_status)
-    values (target_complaint_id, previous_status, 'Work Order Created');
+to authenticated
 
-    return result_record;
-end;
-$$;
+using (true);
 
-revoke all on function public.create_work_order_for_complaint(text) from public;
-grant execute on function public.create_work_order_for_complaint(text) to authenticated;
 
-create or replace function public.assign_work_order(
-    target_work_order_id uuid,
-    target_contractor_id uuid
+-- ============================================================
+-- 15. GIS DATA
+-- ============================================================
+
+create policy drainage_select_authenticated
+
+on public.drainage_points
+
+for select
+
+to authenticated
+
+using (true);
+
+
+create policy waterlogging_select_authenticated
+
+on public.waterlogging_hotspots
+
+for select
+
+to authenticated
+
+using (true);
+
+
+create policy roads_select_authenticated
+
+on public.road_segments
+
+for select
+
+to authenticated
+
+using (true);
+
+
+-- ============================================================
+-- 16. CONTRACTORS
+-- ============================================================
+
+create policy contractors_select_authenticated
+
+on public.contractors
+
+for select
+
+to authenticated
+
+using (true);
+
+
+-- ============================================================
+-- 17. WORK ORDERS
+-- ============================================================
+
+create policy work_orders_select_participants
+
+on public.work_orders
+
+for select
+
+to authenticated
+
+using (
+
+    public.is_role('officer')
+
+    or contractor_id = auth.uid()
+
+);
+
+
+-- ============================================================
+-- 18. REPAIR EVIDENCE
+-- ============================================================
+
+create policy repair_evidence_select_participants
+
+on public.repair_evidence
+
+for select
+
+to authenticated
+
+using (
+
+    public.is_role('officer')
+
+    or captured_by = auth.uid()
+
+    or exists (
+
+        select 1
+
+        from public.work_orders w
+
+        where w.id =
+              repair_evidence.work_order_id
+
+        and w.contractor_id =
+            auth.uid()
+
+    )
+
+);
+
+
+-- ============================================================
+-- 19. DUPLICATE REPORTS
+-- ============================================================
+
+create policy duplicate_reports_select_participants
+
+on public.duplicate_reports
+
+for select
+
+to authenticated
+
+using (
+
+    public.is_role('officer')
+
+    or exists (
+
+        select 1
+
+        from public.complaints c
+
+        where c.complaint_id =
+              duplicate_reports.complaint_id
+
+        and c.user_id =
+            auth.uid()
+
+    )
+
+);
+
+
+-- ============================================================
+-- 20. STATUS HISTORY
+-- ============================================================
+
+create policy complaint_history_select_participants
+
+on public.complaint_status_history
+
+for select
+
+to authenticated
+
+using (
+
+    public.is_role('officer')
+
+    or exists (
+
+        select 1
+
+        from public.complaints c
+
+        where c.complaint_id =
+              complaint_status_history.complaint_id
+
+        and c.user_id =
+            auth.uid()
+
+    )
+
+    or exists (
+
+        select 1
+
+        from public.work_orders w
+
+        where w.complaint_id =
+              complaint_status_history.complaint_id
+
+        and w.contractor_id =
+            auth.uid()
+
+    )
+
+);
+
+
+-- ============================================================
+-- 21. FUNCTION PERMISSIONS
+-- ============================================================
+
+grant execute
+on function public.analyze_complaint(text)
+to authenticated;
+
+
+grant execute
+on function public.create_work_order(text,uuid)
+to authenticated;
+
+
+grant execute
+on function public.submit_repair_evidence(uuid,text)
+to authenticated;
+
+
+grant execute
+on function public.transition_work_order(uuid,text)
+to authenticated;
+
+
+-- ============================================================
+-- 22. GIS SAMPLE DATA
+-- ============================================================
+
+insert into public.drainage_points (
+    name,
+    latitude,
+    longitude,
+    risk_level
 )
-returns public.work_orders
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-    result_record public.work_orders;
-    complaint_status text;
-begin
-    if not public.is_role('officer') then
-        raise exception 'Only officers can assign work orders';
-    end if;
 
-    if not exists (
-        select 1 from public.profiles
-        where id = target_contractor_id
-        and role = 'contractor'
-    ) then
-        raise exception 'Target user is not a contractor';
-    end if;
+values
 
-    select status into complaint_status
-    from public.complaints
-    where complaint_id = (select complaint_id from public.work_orders where id = target_work_order_id)
-    for update;
+(
+    'Main Storm Drain',
+    16.12380,
+    80.12390,
+    'High'
+),
 
-    if complaint_status not in ('Work Order Created', 'Contractor Assigned', 'Reopened') then
-        raise exception 'Complaint is not ready for contractor assignment';
-    end if;
+(
+    'Ward Drain 08',
+    16.12510,
+    80.12620,
+    'Medium'
+)
 
-    update public.work_orders
-    set contractor_id = target_contractor_id,
-        status = 'Assigned'
-    where id = target_work_order_id
-    returning * into result_record;
+on conflict do nothing;
 
-    if result_record.id is null then
-        raise exception 'Work order not found';
-    end if;
 
-    update public.complaints
-    set status = 'Contractor Assigned'
-    where complaint_id = result_record.complaint_id;
+insert into public.waterlogging_hotspots (
+    name,
+    latitude,
+    longitude,
+    risk_level,
+    historical_frequency
+)
 
-    insert into public.status_history (complaint_id, from_status, to_status)
-    values (result_record.complaint_id, complaint_status, 'Contractor Assigned');
+values
 
-    return result_record;
-end;
-$$;
+(
+    'Waterlogging Hotspot A',
+    16.12420,
+    80.12410,
+    'High',
+    12
+),
 
-revoke all on function public.assign_work_order(uuid, uuid) from public;
-grant execute on function public.assign_work_order(uuid, uuid) to authenticated;
+(
+    'Waterlogging Hotspot B',
+    16.12600,
+    80.12700,
+    'Medium',
+    6
+)
 
-insert into public.drainage (latitude, longitude, type, risk)
-select 16.12380, 80.12390, 'Main Drain', 'High'
-where not exists (select 1 from public.drainage);
+on conflict do nothing;
 
-insert into public.waterlogging (latitude, longitude, type, risk)
-select 16.12420, 80.12450, 'Waterlogging Hotspot', 'High'
-where not exists (select 1 from public.waterlogging);
+
+-- ============================================================
+-- 23. STORAGE BUCKETS
+-- ============================================================
+
+insert into storage.buckets (
+    id,
+    name,
+    public
+)
+
+values (
+    'road-evidence',
+    'road-evidence',
+    false
+)
+
+on conflict (id)
+do update set
+    public = false;
+
+
+insert into storage.buckets (
+    id,
+    name,
+    public
+)
+
+values (
+    'repair-evidence',
+    'repair-evidence',
+    false
+)
+
+on conflict (id)
+do update set
+    public = false;
+
+
+-- ============================================================
+-- 24. STORAGE POLICIES
+-- ============================================================
+
+drop policy if exists road_evidence_upload
+on storage.objects;
+
+drop policy if exists road_evidence_read
+on storage.objects;
+
+drop policy if exists repair_evidence_upload
+on storage.objects;
+
+drop policy if exists repair_evidence_read
+on storage.objects;
+
+
+create policy road_evidence_upload
+
+on storage.objects
+
+for insert
+
+to authenticated
+
+with check (
+
+    bucket_id = 'road-evidence'
+
+    and (storage.foldername(name))[1]
+        = 'complaints'
+
+    and (storage.foldername(name))[2]
+        = auth.uid()::text
+
+);
+
+
+create policy road_evidence_read
+
+on storage.objects
+
+for select
+
+to authenticated
+
+using (
+
+    bucket_id = 'road-evidence'
+
+);
+
+
+create policy repair_evidence_upload
+
+on storage.objects
+
+for insert
+
+to authenticated
+
+with check (
+
+    bucket_id = 'repair-evidence'
+
+    and (storage.foldername(name))[1]
+        = 'repairs'
+
+    and (storage.foldername(name))[2]
+        = auth.uid()::text
+
+);
+
+
+create policy repair_evidence_read
+
+on storage.objects
+
+for select
+
+to authenticated
+
+using (
+
+    bucket_id = 'repair-evidence'
+
+);
+
+
+-- ============================================================
+-- 25. INDEXES
+-- ============================================================
+
+create index if not exists complaints_status_idx
+on public.complaints(status);
+
+
+create index if not exists complaints_severity_idx
+on public.complaints(severity);
+
+
+create index if not exists complaints_priority_idx
+on public.complaints(priority desc);
+
+
+create index if not exists complaints_location_idx
+on public.complaints(latitude, longitude);
+
+
+create index if not exists work_orders_contractor_idx
+on public.work_orders(contractor_id, status);
+
+
+create index if not exists complaints_user_idx
+on public.complaints(user_id);
+
+
+create index if not exists complaints_city_idx
+on public.complaints(city);
+
+
+create index if not exists complaints_state_idx
+on public.complaints(state);
+
+
+-- ============================================================
+-- 26. VERIFICATION QUERIES
+-- ============================================================
+
+select
+    routine_name,
+    routine_type
+from information_schema.routines
+where routine_schema = 'public'
+and routine_name in (
+    'is_role',
+    'handle_new_user',
+    'analyze_complaint',
+    'create_work_order',
+    'submit_repair_evidence',
+    'transition_work_order'
+)
+order by routine_name;
+
+
+select
+    tablename,
+    rowsecurity
+from pg_tables
+where schemaname = 'public'
+and tablename in (
+    'profiles',
+    'complaints',
+    'defects',
+    'drainage_points',
+    'waterlogging_hotspots',
+    'road_segments',
+    'contractors',
+    'work_orders',
+    'repair_evidence',
+    'duplicate_reports',
+    'complaint_status_history'
+)
+order by tablename;
+
+
+select
+    tablename,
+    policyname
+from pg_policies
+where schemaname = 'public'
+order by tablename, policyname;
+
+
+select
+    id,
+    name,
+    public
+from storage.buckets
+where id in (
+    'road-evidence',
+    'repair-evidence'
+);
