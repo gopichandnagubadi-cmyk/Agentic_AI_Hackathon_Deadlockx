@@ -30,3 +30,14 @@ Valid roles are `citizen`, `officer`, and `contractor`.
 
 Serve the `Frontend` directory with VS Code Live Server and open `index.html` through the generated localhost URL. Do not open the file directly because camera, geolocation, and Supabase browser session behavior require a local web origin.
 
+## Citizen AI Detection
+
+Train the detector once, then start the local inference API in a second terminal:
+
+```powershell
+.venv\Scripts\python.exe train_pothole.py all --epochs 40
+.venv\Scripts\python.exe detect_server.py
+```
+
+Keep the API running while using the citizen report flow. The browser sends each captured or uploaded image to `http://127.0.0.1:8000/detect` and displays the returned pothole confidence. If the API is stopped, the report can still be submitted through the existing Supabase analysis, but it will show that AI detection was unavailable.
+
