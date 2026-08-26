@@ -1,0 +1,1112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SmartCity | Urban Infrastructure Lifecycle Engine</title>
+
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  >
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet"
+  >
+
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<header id="app-nav" class="topbar hidden">
+
+  <div class="brand">
+    SMART<span>CITY</span>
+  </div>
+
+  <nav id="nav-links"></nav>
+
+  <div class="nav-user">
+    <span id="nav-role-badge"></span>
+
+    <button class="btn ghost" onclick="logout()">
+      Logout
+    </button>
+  </div>
+
+</header>
+
+<main>
+
+<!-- ================= LOGIN ================= -->
+
+<section id="view-login" class="view login-page">
+
+  <div class="login-shell">
+
+    <div class="login-hero">
+
+      <div class="eyebrow">
+        GIS • COMPUTER VISION • URBAN INFRASTRUCTURE
+      </div>
+
+      <h1>
+        Autonomous Urban Infrastructure Lifecycle Engine
+      </h1>
+
+      <p>
+        Detect road defects, correlate drainage and waterlogging risk,
+        prioritize work and close the lifecycle with verified repair evidence.
+      </p>
+
+      <div class="hero-points">
+        <span>● GIS defect mapping</span>
+        <span>● Risk scoring</span>
+        <span>● Contractor lifecycle</span>
+      </div>
+
+    </div>
+
+    <div class="auth-card">
+
+      <div class="auth-tabs">
+
+        <button
+          id="tab-login"
+          class="active"
+          onclick="setAuthMode('login')"
+        >
+          Login
+        </button>
+
+        <button
+          id="tab-signup"
+          onclick="setAuthMode('signup')"
+        >
+          Create account
+        </button>
+
+      </div>
+
+      <h2 id="auth-title">
+        Welcome back
+      </h2>
+
+      <p id="auth-subtitle" class="muted">
+        Sign in to your infrastructure workspace.
+      </p>
+
+      <div class="form-group">
+
+        <label>Email</label>
+
+        <input
+          id="auth-email"
+          type="email"
+          placeholder="you@example.com"
+        >
+
+      </div>
+
+      <div class="form-group">
+
+        <label>Password</label>
+
+        <input
+          id="auth-password"
+          type="password"
+          placeholder="Minimum 6 characters"
+        >
+
+      </div>
+
+      <div id="signup-fields" class="hidden">
+
+        <div class="form-group">
+
+          <label>Full name</label>
+
+          <input
+            id="signup-name"
+            type="text"
+            placeholder="Your name"
+          >
+
+        </div>
+
+        <div class="form-group">
+
+          <label>Account role</label>
+
+          <select id="signup-role">
+
+            <option value="citizen">
+              Citizen
+            </option>
+
+            <option value="officer">
+              Municipal Officer
+            </option>
+
+            <option value="contractor">
+              Contractor
+            </option>
+
+          </select>
+
+        </div>
+
+      </div>
+
+      <button
+        id="auth-submit"
+        class="btn primary full"
+        onclick="submitAuth()"
+      >
+        Login
+      </button>
+
+      <button
+        class="btn google full"
+        onclick="signInWithGoogle()"
+      >
+        Continue with Google
+      </button>
+
+      <button
+        id="forgot-btn"
+        class="link-btn"
+        onclick="resetPassword()"
+      >
+        Forgot password?
+      </button>
+
+      <p
+        id="auth-message"
+        class="form-message"
+      ></p>
+
+      <p class="security-note">
+        Supabase Auth handles credentials.
+        Database access is protected with Row Level Security.
+      </p>
+
+    </div>
+
+  </div>
+
+</section>
+
+
+<!-- ================= CITIZEN DASHBOARD ================= -->
+
+<section id="view-citizen-dash" class="view hidden">
+
+  <div class="page-head">
+
+    <div>
+
+      <span class="eyebrow">
+        CITIZEN PORTAL
+      </span>
+
+      <h2>
+        Report & Track Urban Problems
+      </h2>
+
+      <p class="muted">
+        Every complaint becomes a traceable municipal lifecycle.
+      </p>
+
+    </div>
+
+    <button
+      class="btn primary"
+      onclick="startNewReport()"
+    >
+      + Report Problem
+    </button>
+
+  </div>
+
+
+  <div class="kpi-grid">
+
+    <div class="kpi">
+
+      <span>Active</span>
+
+      <strong id="citizen-active">
+        0
+      </strong>
+
+    </div>
+
+    <div class="kpi">
+
+      <span>Resolved</span>
+
+      <strong id="citizen-resolved">
+        0
+      </strong>
+
+    </div>
+
+    <div class="kpi danger">
+
+      <span>High / Very Serious</span>
+
+      <strong id="citizen-high">
+        0
+      </strong>
+
+    </div>
+
+  </div>
+
+
+  <div class="panel">
+
+    <div class="panel-head">
+
+      <h3>
+        My Complaints
+      </h3>
+
+      <button
+        class="btn small"
+        onclick="loadCitizen()"
+      >
+        Refresh
+      </button>
+
+    </div>
+
+    <div
+      id="citizen-history"
+      class="card-list"
+    ></div>
+
+  </div>
+
+</section>
+
+
+<!-- ================= REPORT WIZARD ================= -->
+
+<section id="view-report-wizard" class="view hidden">
+
+  <div class="page-head">
+
+    <div>
+
+      <button
+        class="link-btn"
+        onclick="showView('view-citizen-dash')"
+      >
+        ← Dashboard
+      </button>
+
+      <h2>
+        New Defect Report
+      </h2>
+
+    </div>
+
+  </div>
+
+
+  <div class="wizard">
+
+    <!-- EVIDENCE -->
+
+    <div class="step">
+
+      <h3>
+        1. Evidence
+      </h3>
+
+      <p class="muted">
+        Capture or upload the road/drainage defect.
+      </p>
+
+      <div class="camera-box">
+
+        <video
+          id="camera-stream"
+          autoplay
+          playsinline
+          class="hidden"
+        ></video>
+
+        <img
+          id="photo-preview"
+          class="hidden"
+          alt="Defect preview"
+        >
+
+        <div id="camera-placeholder">
+          📷
+          <span>
+            No image captured
+          </span>
+        </div>
+
+      </div>
+
+
+      <div class="actions">
+
+        <button
+          id="open-camera"
+          class="btn"
+          onclick="startCamera()"
+        >
+          Open camera
+        </button>
+
+        <button
+          id="capture-camera"
+          class="btn primary hidden"
+          onclick="capturePhoto()"
+        >
+          Capture
+        </button>
+
+        <label class="btn">
+
+          Upload image
+
+          <input
+            id="report-file"
+            type="file"
+            accept="image/*"
+            onchange="handleReportFile(event)"
+          >
+
+        </label>
+
+        <button
+          id="close-camera"
+          class="btn hidden"
+          onclick="closeCamera()"
+        >
+          Close
+        </button>
+
+      </div>
+
+    </div>
+
+
+    <!-- LOCATION -->
+
+    <div class="step">
+
+      <h3>
+        2. GIS Location
+      </h3>
+
+      <div class="actions">
+
+        <button
+          class="btn primary"
+          onclick="captureGPS()"
+        >
+          Use current location
+        </button>
+
+        <button
+          class="btn"
+          onclick="toggleManualLocation()"
+        >
+          Enter coordinates manually
+        </button>
+
+      </div>
+
+
+      <div
+        id="manual-location"
+        class="manual hidden"
+      >
+
+        <div>
+
+          <label>
+            Latitude
+          </label>
+
+          <input
+            id="manual-lat"
+            type="number"
+            step="any"
+            placeholder="16.123456"
+          >
+
+        </div>
+
+        <div>
+
+          <label>
+            Longitude
+          </label>
+
+          <input
+            id="manual-lng"
+            type="number"
+            step="any"
+            placeholder="80.123456"
+          >
+
+        </div>
+
+        <button
+          class="btn"
+          onclick="useManualLocation()"
+        >
+          Resolve & use
+        </button>
+
+      </div>
+
+
+      <div
+        id="location-display"
+        class="location-card"
+      >
+
+        <b>
+          📍 Location not captured
+        </b>
+
+        <span>
+          GPS or manual coordinates are required.
+        </span>
+
+      </div>
+
+
+      <div
+        id="location-address"
+        class="address-grid hidden"
+      >
+
+        <div>
+
+          <span>
+            Locality
+          </span>
+
+          <b id="loc-locality">
+            —
+          </b>
+
+        </div>
+
+        <div>
+
+          <span>
+            City
+          </span>
+
+          <b id="loc-city">
+            —
+          </b>
+
+        </div>
+
+        <div>
+
+          <span>
+            State
+          </span>
+
+          <b id="loc-state">
+            —
+          </b>
+
+        </div>
+
+      </div>
+
+
+      <div
+        id="report-map"
+        class="map small-map hidden"
+      ></div>
+
+    </div>
+
+
+    <!-- OBSERVATION -->
+
+    <div class="step">
+
+      <h3>
+        3. Observation
+      </h3>
+
+      <div class="form-group">
+
+        <label>
+          Defect type
+        </label>
+
+        <select id="defect-type">
+
+          <option>
+            Pothole
+          </option>
+
+          <option>
+            Surface Degradation
+          </option>
+
+          <option>
+            Structural Defect
+          </option>
+
+          <option>
+            Road Crack
+          </option>
+
+          <option>
+            Waterlogging
+          </option>
+
+          <option>
+            Drainage Defect
+          </option>
+
+        </select>
+
+      </div>
+
+
+      <div class="form-group">
+
+        <label>
+          Pothole condition
+        </label>
+
+        <select id="pothole-condition">
+
+          <option value="Unknown">
+            Not sure
+          </option>
+
+          <option value="Dry pothole">
+            Dry pothole
+          </option>
+
+          <option value="Contains standing water">
+            Contains standing water
+          </option>
+
+          <option value="Waterlogged pothole">
+            Waterlogged pothole
+          </option>
+
+          <option value="Drain or open drain">
+            Drain or open drain
+          </option>
+
+        </select>
+
+      </div>
+
+
+      <div class="form-group">
+
+        <label>
+          Observation
+        </label>
+
+        <textarea
+          id="report-notes"
+          rows="5"
+          placeholder="Describe size, depth, traffic impact, standing water, etc."
+        ></textarea>
+
+      </div>
+
+    </div>
+
+
+    <button
+      id="submit-report"
+      class="btn primary full"
+      disabled
+      onclick="submitComplaint()"
+    >
+      Analyze & Submit Report
+    </button>
+
+  </div>
+
+</section>
+
+
+<!-- ================= PROCESSING ================= -->
+
+<section
+  id="view-processing"
+  class="view hidden"
+>
+
+  <div class="processing">
+
+    <div class="spinner"></div>
+
+    <h2>
+      Infrastructure Analysis Engine
+    </h2>
+
+    <ul id="analysis-steps">
+
+      <li>
+        Image received
+      </li>
+
+      <li>
+        Defect segmentation simulation
+      </li>
+
+      <li>
+        Severity estimation
+      </li>
+
+      <li>
+        Drainage correlation
+      </li>
+
+      <li>
+        Waterlogging correlation
+      </li>
+
+      <li>
+        Duplicate complaint check
+      </li>
+
+      <li>
+        Maintenance priority scoring
+      </li>
+
+    </ul>
+
+  </div>
+
+</section>
+
+
+<!-- ================= RESULTS ================= -->
+
+<section
+  id="view-results"
+  class="view hidden"
+>
+
+  <div class="page-head">
+
+    <div>
+
+      <span class="eyebrow">
+        ANALYSIS COMPLETE
+      </span>
+
+      <h2 id="result-title">
+        Defect analyzed
+      </h2>
+
+      <p class="muted">
+        Prototype computer-vision and GIS scoring
+        for the submitted evidence.
+      </p>
+
+    </div>
+
+  </div>
+
+
+  <div class="result-grid">
+
+    <div class="panel">
+
+      <h3>
+        Computer Vision
+      </h3>
+
+      <div
+        id="result-image-stage"
+        class="result-image-stage"
+      >
+
+        <img
+          id="result-img"
+          class="result-image"
+        >
+
+        <div
+          id="detection-boxes"
+          class="detection-boxes"
+          aria-label="Detected pothole locations"
+        ></div>
+
+      </div>
+
+      <div class="data-list">
+
+        <div>
+          <span>Type</span>
+          <b id="result-type">—</b>
+        </div>
+
+        <div>
+          <span>AI confidence</span>
+          <b id="result-confidence">—</b>
+        </div>
+
+        <div>
+          <span>Severity</span>
+          <b id="result-severity">—</b>
+        </div>
+
+        <div>
+          <span>Estimated size</span>
+          <b id="result-size">—</b>
+        </div>
+
+        <div>
+          <span>Approx. depth</span>
+          <b id="result-depth">—</b>
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <div class="panel">
+
+      <h3>
+        GIS / Risk Correlation
+      </h3>
+
+      <div class="data-list">
+
+        <div>
+          <span>Drainage nearby</span>
+          <b id="result-drainage">—</b>
+        </div>
+
+        <div>
+          <span>Waterlogging risk</span>
+          <b id="result-water">—</b>
+        </div>
+
+        <div>
+          <span>Duplicate check</span>
+          <b id="result-duplicate">—</b>
+        </div>
+
+        <div>
+          <span>Priority score</span>
+          <b id="result-priority">—</b>
+        </div>
+
+      </div>
+
+      <div class="risk-box">
+
+        <div class="risk-bar">
+          <i id="risk-fill"></i>
+        </div>
+
+        <span id="risk-label">
+          —
+        </span>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <div
+    id="result-location"
+    class="panel"
+  ></div>
+
+
+  <button
+    class="btn primary full"
+    onclick="showView('view-citizen-dash')"
+  >
+    Finish & Track
+  </button>
+
+</section>
+
+
+<!-- ================= OFFICER ================= -->
+
+<section
+  id="view-officer-dash"
+  class="view hidden"
+>
+
+  <div class="page-head">
+
+    <div>
+
+      <span class="eyebrow">
+        MUNICIPAL OPERATIONS
+      </span>
+
+      <h2>
+        Officer Command Center
+      </h2>
+
+      <p class="muted">
+        Review, prioritize, assign and verify
+        urban infrastructure work.
+      </p>
+
+    </div>
+
+    <button
+      class="btn"
+      onclick="loadOfficer()"
+    >
+      Refresh
+    </button>
+
+  </div>
+
+
+  <div class="kpi-grid">
+
+    <div class="kpi">
+      <span>Total</span>
+      <strong id="off-total">0</strong>
+    </div>
+
+    <div class="kpi normal">
+      <span>Normal</span>
+      <strong id="off-normal">0</strong>
+    </div>
+
+    <div class="kpi medium">
+      <span>Medium</span>
+      <strong id="off-medium">0</strong>
+    </div>
+
+    <div class="kpi serious">
+      <span>Very Serious</span>
+      <strong id="off-serious">0</strong>
+    </div>
+
+    <div class="kpi success">
+      <span>Closed</span>
+      <strong id="off-closed">0</strong>
+    </div>
+
+  </div>
+
+
+  <div
+    id="officer-map"
+    class="map main-map"
+  ></div>
+
+
+  <div class="panel">
+
+    <div class="panel-head">
+
+      <h3>
+        Complaint Queue
+      </h3>
+
+      <select
+        id="severity-filter"
+        onchange="renderOfficerTable()"
+      >
+
+        <option value="all">
+          All severity
+        </option>
+
+        <option value="Normal">
+          Normal
+        </option>
+
+        <option value="Medium">
+          Medium
+        </option>
+
+        <option value="Very Serious">
+          Very Serious
+        </option>
+
+      </select>
+
+    </div>
+
+
+    <div class="table-wrap">
+
+      <table>
+
+        <thead>
+
+          <tr>
+
+            <th>ID</th>
+            <th>Defect</th>
+            <th>Location</th>
+            <th>Coordinates</th>
+            <th>Severity</th>
+            <th>Priority</th>
+            <th>Status</th>
+            <th>Action</th>
+
+          </tr>
+
+        </thead>
+
+        <tbody id="officer-table"></tbody>
+
+      </table>
+
+    </div>
+
+  </div>
+
+
+  <div class="panel">
+
+    <div class="panel-head">
+
+      <h3>
+        Repair Verification
+      </h3>
+
+    </div>
+
+    <div
+      id="verification-list"
+      class="card-list"
+    ></div>
+
+  </div>
+
+</section>
+
+
+<!-- ================= CONTRACTOR ================= -->
+
+<section
+  id="view-contractor-dash"
+  class="view hidden"
+>
+
+  <div class="page-head">
+
+    <div>
+
+      <span class="eyebrow">
+        CONTRACTOR WORK CENTER
+      </span>
+
+      <h2>
+        Assigned Maintenance
+      </h2>
+
+      <p class="muted">
+        Accept work, repair the defect and submit
+        verifiable after-work evidence.
+      </p>
+
+    </div>
+
+    <button
+      class="btn"
+      onclick="loadContractor()"
+    >
+      Refresh
+    </button>
+
+  </div>
+
+
+  <div class="kpi-grid">
+
+    <div class="kpi">
+
+      <span>
+        Assigned
+      </span>
+
+      <strong id="con-assigned">
+        0
+      </strong>
+
+    </div>
+
+    <div class="kpi medium">
+
+      <span>
+        In Progress
+      </span>
+
+      <strong id="con-progress">
+        0
+      </strong>
+
+    </div>
+
+    <div class="kpi success">
+
+      <span>
+        Completed
+      </span>
+
+      <strong id="con-completed">
+        0
+      </strong>
+
+    </div>
+
+  </div>
+
+
+  <div
+    id="contractor-list"
+    class="card-list"
+  ></div>
+
+</section>
+
+
+<div
+  id="toast"
+  class="toast"
+></div>
+
+</main>
+
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script src="script.js"></script>
+
+</body>
+</html>

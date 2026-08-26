@@ -1,0 +1,16 @@
+{
+	"folders": [
+		{
+			"path": ".."
+		},
+		{
+			"path": "../../../Downloads/potholes file/archive"
+		},
+		{
+			"path": "../../../Downloads/potholes file/Pothole.v1-raw.yolov11"
+		}
+	],
+	"settings": {
+		"liveServer.settings.multiRootWorkspaceName": "Agentic_Ai_Hackathon"
+	}
+}
