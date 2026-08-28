@@ -100,6 +100,8 @@ class DetectionHandler(BaseHTTPRequestHandler):
             self._send(200, {
                 "available": True,
                 "is_pothole": True,
+                "image_width": image.width,
+                "image_height": image.height,
                 "detections": detections,
             })
         except Exception as error:

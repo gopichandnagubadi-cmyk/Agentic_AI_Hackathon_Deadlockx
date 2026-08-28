@@ -42,3 +42,7 @@ python3 detect_server.py
 Keep the API running while using the citizen report flow. The browser sends each captured or uploaded image to `http://127.0.0.1:8000/detect`. A report is submitted only when the API confirms `is_pothole: true`; unrelated images are rejected with a message asking the citizen to upload another image. If the API is unavailable, submission is blocked until it is started.
 
 The checked-in dataset currently has train and validation splits but no independent `test/images` split. The `test` command will therefore stop with a clear error until an independent test split is prepared.
+
+Repair evidence is accepted only when the contractor is within 20 meters of the original pothole location. When an officer rejects repair evidence, the existing work order returns to `Assigned`, keeps the original before image, clears the after image and repair coordinates, and requires the contractor to accept the work, start repair, and capture new evidence again.
+
+If creating a work order reports a `NOT NULL` violation, rerun the `CREATE OR REPLACE FUNCTION public.create_work_order(text, uuid)` section in Supabase SQL Editor. The browser calls this database function, so changing local JavaScript cannot update an already deployed Supabase function.

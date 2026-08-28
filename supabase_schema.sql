@@ -136,6 +136,7 @@ create table if not exists public.contractors (
 
 create table if not exists public.work_orders (
     id uuid primary key default gen_random_uuid(),
+    work_order_id uuid not null default gen_random_uuid(),
     work_order_number text unique not null,
     complaint_id text unique not null
         references public.complaints(complaint_id)
@@ -323,6 +324,25 @@ add column if not exists verification_note text;
 alter table public.work_orders
 add column if not exists repair_evidence boolean default false;
 
+-- Compatibility fallback for older create_work_order RPC deployments.
+alter table public.work_orders
+    alter column work_order_number set default (
+        'WO-' || upper(right(replace(gen_random_uuid()::text, '-', ''), 8))
+    );
+
+alter table public.work_orders
+    add column if not exists work_order_id uuid;
+
+update public.work_orders
+set work_order_id = gen_random_uuid()
+where work_order_id is null;
+
+alter table public.work_orders
+    alter column work_order_id set default gen_random_uuid();
+
+alter table public.work_orders
+    alter column work_order_id set not null;
+
 
 -- ============================================================
 -- 4. AUTH -> PROFILE
@@ -401,8 +421,13 @@ $$;
 -- 6. COMPLAINT ANALYSIS ENGINE
 -- ============================================================
 
+drop function if exists public.analyze_complaint(text);
+
 create or replace function public.analyze_complaint(
-    target_complaint_id text
+    target_complaint_id text,
+    target_defect_type text default 'Pothole',
+    target_detection_area_ratio double precision default null,
+    target_detection_confidence double precision default null
 )
 returns json
 language plpgsql
@@ -425,6 +450,10 @@ declare
 
     sz double precision;
     dep double precision;
+    defect_name text;
+    area_ratio double precision;
+    confidence double precision;
+    type_factor double precision;
 
 begin
 
@@ -436,6 +465,18 @@ begin
     if not found then
         raise exception 'Complaint not found';
     end if;
+
+    defect_name := coalesce(nullif(target_defect_type, ''), c.defect_type, 'Pothole');
+    area_ratio := least(0.75, greatest(0.002, coalesce(target_detection_area_ratio, 0.05)));
+    confidence := least(1, greatest(0, coalesce(target_detection_confidence, 0.5)));
+    type_factor := case lower(defect_name)
+        when 'structural defect' then 1.25
+        when 'waterlogging' then 1.15
+        when 'surface degradation' then 0.9
+        when 'road crack' then 0.75
+        when 'drainage defect' then 1.1
+        else 1.0
+    end;
 
 
     -- Find nearest drainage point
@@ -526,41 +567,51 @@ begin
     end if;
 
 
-    -- Prototype severity estimation
+    -- Approximate physical values derived from detected image area and type.
     sz :=
-        case
-            when lower(coalesce(c.notes,'')) ~
-                 '(large|huge|deep|dangerous)'
-            then 2.5
-            else 1.2
-        end;
+        round(((0.25 + (area_ratio * 18) + (confidence * 0.35)) * type_factor)::numeric, 2)::double precision;
 
 
     dep :=
-        case
-            when lower(coalesce(c.notes,'')) ~
-                 '(deep|dangerous)'
-            then 15
-            else 7
-        end;
+        round(((3 + (area_ratio * 38) + (confidence * 3)) * type_factor)::numeric, 1)::double precision;
+
+    if lower(coalesce(c.notes,'')) ~ '(deep|dangerous)' then
+        dep := dep + 3;
+    end if;
 
 
-    if c.water_risk = 'High'
-       or dep >= 15
-       or sz >= 2.5 then
+    -- Severity bands compare estimated size and depth for each defect family.
+    if lower(defect_name) in ('structural defect', 'drainage defect') then
+        sev := 'Very Serious';
 
+    elsif lower(defect_name) in ('surface degradation', 'waterlogging') then
+        if c.water_risk = 'High' or sz >= 4.0 or dep >= 15 then
+            sev := 'Very Serious';
+        else
+            sev := 'Medium';
+        end if;
+
+    elsif c.water_risk = 'High'
+       or sz >= (case lower(defect_name)
+           when 'road crack' then 3.0
+           else 3.5
+       end)
+       or dep >= 15 then
         sev := 'Very Serious';
 
     elsif c.water_risk = 'Medium'
-       or dep >= 10
-       or sz >= 1.8 then
-
+       or sz >= (case lower(defect_name)
+           when 'road crack' then 1.2
+           else 1.5
+       end)
+       or dep >= (case lower(defect_name)
+           when 'road crack' then 6
+           else 8
+       end) then
         sev := 'Medium';
 
     else
-
         sev := 'Normal';
-
     end if;
 
 
@@ -643,8 +694,7 @@ begin
     update public.complaints
 
     set
-        defect_type =
-            coalesce(defect_type,'Pothole'),
+        defect_type = defect_name,
 
         severity = sev,
 
@@ -683,7 +733,7 @@ begin
 
     values (
         c.complaint_id,
-        coalesce(c.defect_type,'Pothole'),
+        defect_name,
         sev,
         94,
         'Prototype segmentation estimate',
@@ -717,7 +767,7 @@ begin
         c.complaint_id,
 
         'defect_type',
-        coalesce(c.defect_type,'Pothole'),
+        defect_name,
 
         'severity',
         sev,
@@ -727,6 +777,15 @@ begin
 
         'approximate_depth_cm',
         dep,
+
+        'severity_ranges',
+        case lower(defect_name)
+            when 'pothole' then 'Normal: size < 1.5 m2 and depth < 8 cm; Medium: size 1.5-3.5 m2 or depth 8-15 cm; Very Serious: size >= 3.5 m2 or depth >= 15 cm'
+            when 'road crack' then 'Normal: size < 1.2 m2 and depth < 6 cm; Medium: size 1.2-3.0 m2 or depth 6-15 cm; Very Serious: size >= 3.0 m2 or depth >= 15 cm'
+            when 'surface degradation' then 'Medium by type; Very Serious: size >= 4.0 m2 or depth >= 15 cm'
+            when 'waterlogging' then 'Medium by type; Very Serious: size >= 4.0 m2 or depth >= 15 cm or high water risk'
+            else 'Very Serious by defect type'
+        end,
 
         'water_risk',
         c.water_risk,
@@ -770,6 +829,18 @@ declare
 
 begin
 
+    if auth.uid() is null then
+        raise exception 'Your officer session has expired. Log in again.';
+    end if;
+
+    if target_complaint_id is null or btrim(target_complaint_id) = '' then
+        raise exception 'A complaint is required to create a work order.';
+    end if;
+
+    if target_contractor_id is null then
+        raise exception 'A contractor is required to create a work order.';
+    end if;
+
     if not public.is_role('officer') then
         raise exception
             'Only municipal officers can assign work';
@@ -798,8 +869,42 @@ begin
 
     end if;
 
+    select *
+    into w
+    from public.work_orders
+    where complaint_id = c.complaint_id;
+
+    if found then
+        update public.work_orders
+        set
+            contractor_id = target_contractor_id,
+            assigned_by = auth.uid(),
+            status = 'Assigned',
+            evidence_after_url = null,
+            repair_latitude = null,
+            repair_longitude = null,
+            repair_accuracy = null,
+            repair_evidence = false,
+            assigned_at = now(),
+            accepted_at = null,
+            started_at = null,
+            completed_at = null,
+            verified_at = null,
+            verified_by = null,
+            updated_at = now()
+        where id = w.id
+        returning * into w;
+
+        update public.complaints
+        set status = 'Assigned', updated_at = now()
+        where complaint_id = c.complaint_id;
+
+        return w;
+    end if;
+
 
     insert into public.work_orders (
+        work_order_id,
         work_order_number,
         complaint_id,
         contractor_id,
@@ -810,6 +915,7 @@ begin
     )
 
     values (
+        gen_random_uuid(),
         'WO-' ||
         upper(
             right(
@@ -873,9 +979,14 @@ $$;
 -- 8. CONTRACTOR SUBMITS REPAIR EVIDENCE
 -- ============================================================
 
+drop function if exists public.submit_repair_evidence(uuid, text);
+
 create or replace function public.submit_repair_evidence(
     target_work_order_id uuid,
-    target_after_url text
+    target_after_url text,
+    target_latitude double precision,
+    target_longitude double precision,
+    target_accuracy double precision
 )
 returns public.work_orders
 language plpgsql
@@ -887,6 +998,10 @@ declare
     w public.work_orders;
 
 begin
+
+    if target_latitude is null or target_longitude is null then
+        raise exception 'Contractor GPS location is required';
+    end if;
 
     select *
     into w
@@ -912,6 +1027,23 @@ begin
 
     end if;
 
+    if 6371000 * 2 * asin(
+        sqrt(
+            sin(radians(target_latitude - (
+                select latitude from public.complaints
+                where complaint_id = w.complaint_id
+            )) / 2) ^ 2
+            + cos(radians(target_latitude)) *
+              cos(radians((select latitude from public.complaints where complaint_id = w.complaint_id))) *
+              sin(radians(target_longitude - (
+                  select longitude from public.complaints
+                  where complaint_id = w.complaint_id
+              )) / 2) ^ 2
+        )
+    ) > 20 then
+        raise exception 'Contractor is too far from the pothole location (must be within 20 meters)';
+    end if;
+
 
     update public.work_orders
 
@@ -924,6 +1056,10 @@ begin
         completed_at = now(),
 
         repair_evidence = true,
+
+        repair_latitude = target_latitude,
+        repair_longitude = target_longitude,
+        repair_accuracy = target_accuracy,
 
         updated_at = now()
 
@@ -948,14 +1084,20 @@ begin
         work_order_id,
         before_image_url,
         after_image_url,
-        captured_by
+        captured_by,
+        latitude,
+        longitude,
+        accuracy
     )
 
     values (
         w.id,
         w.evidence_before_url,
         target_after_url,
-        auth.uid()
+        auth.uid(),
+        target_latitude,
+        target_longitude,
+        target_accuracy
     );
 
 
@@ -1018,10 +1160,10 @@ begin
         into w;
 
 
-    -- Contractor starts work
-    elsif next_status = 'In Progress'
-          and w.contractor_id = auth.uid()
-          and old_status in ('Accepted','Reopened') then
+        -- Contractor starts work
+        elsif next_status = 'In Progress'
+            and w.contractor_id = auth.uid()
+            and old_status = 'Accepted' then
 
 
         update public.work_orders
@@ -1078,9 +1220,19 @@ begin
         update public.work_orders
 
         set
-            status = 'Reopened',
+            status = 'Assigned',
             verification_note =
                 'Officer requested rework',
+            evidence_after_url = null,
+            repair_latitude = null,
+            repair_longitude = null,
+            repair_accuracy = null,
+            repair_evidence = false,
+            accepted_at = null,
+            started_at = null,
+            completed_at = null,
+            verified_at = null,
+            verified_by = null,
             updated_at = now()
 
         where id = w.id
@@ -1092,7 +1244,7 @@ begin
         update public.complaints
 
         set
-            status = 'Reopened',
+            status = 'Assigned',
             updated_at = now()
 
         where complaint_id = w.complaint_id;
@@ -1555,7 +1707,7 @@ using (
 -- ============================================================
 
 grant execute
-on function public.analyze_complaint(text)
+on function public.analyze_complaint(text,text,double precision,double precision)
 to authenticated;
 
 
@@ -1565,7 +1717,7 @@ to authenticated;
 
 
 grant execute
-on function public.submit_repair_evidence(uuid,text)
+on function public.submit_repair_evidence(uuid,text,double precision,double precision,double precision)
 to authenticated;
 
 

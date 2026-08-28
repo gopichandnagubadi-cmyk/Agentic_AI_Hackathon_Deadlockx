@@ -43,12 +43,23 @@ let report = {
 };
 
 let detectionRequestId = 0;
+let contractorCapture = {
+  workOrder: null,
+  stream: null
+};
 
 let officerComplaints = [];
 let workOrders = [];
 let contractors = [];
 
 let cache = new Map();
+
+
+function getWorkOrderId(workOrder) {
+
+  return workOrder.id || workOrder.work_order_id;
+
+}
 
 
 const $ = id =>
@@ -1326,6 +1337,42 @@ function validateReport() {
 }
 
 
+function detectionAreaRatio(detection) {
+
+  const imageArea =
+    Number(detection?.image_width) *
+    Number(detection?.image_height);
+
+  if (!Number.isFinite(imageArea) || imageArea <= 0)
+    return null;
+
+  const detectedArea = (detection.detections || []).reduce(
+    (total, item) => {
+      const box = item.box_pixels || {};
+      return total + Math.max(
+        0,
+        (Number(box.xmax) - Number(box.xmin)) *
+        (Number(box.ymax) - Number(box.ymin))
+      );
+    },
+    0
+  );
+
+  return detectedArea / imageArea;
+
+}
+
+
+function highestDetectionConfidence(detection) {
+
+  return (detection?.detections || []).reduce(
+    (highest, item) => Math.max(highest, Number(item.confidence) || 0),
+    0
+  );
+
+}
+
+
 function showDetectionAlert(message, kind = "error") {
 
   const alert = $("detection-alert");
@@ -1668,8 +1715,10 @@ async function submitComplaint() {
       await supabaseClient.rpc(
         "analyze_complaint",
         {
-          target_complaint_id:
-            data.complaint_id
+          target_complaint_id: data.complaint_id,
+          target_defect_type: report.defectType,
+          target_detection_area_ratio: detectionAreaRatio(report.detection),
+          target_detection_confidence: highestDetectionConfidence(report.detection)
         }
       );
 
@@ -1753,6 +1802,10 @@ async function renderAnalysis(
     `${Number(
       a.approximate_depth_cm
     ).toFixed(1)} cm`;
+
+  if ($("result-severity-range"))
+    $("result-severity-range").textContent =
+      a.severity_ranges || "Severity calculated from defect type, size, and depth.";
 
 
   $("result-drainage").textContent =
@@ -2534,7 +2587,10 @@ async function assignWork(
   if (error) {
 
     toast(
-      error.message
+      error.message ||
+      error.details ||
+      error.hint ||
+      "Could not create the work order."
     );
 
     return;
@@ -2718,14 +2774,14 @@ async function renderVerification() {
 
                 <button
                   class="btn primary"
-                  onclick="verifyWork('${w.id}','approve')"
+                  onclick="verifyWork('${getWorkOrderId(w)}','approve')"
                 >
                   Approve & Close
                 </button>
 
                 <button
                   class="btn"
-                  onclick="verifyWork('${w.id}','reopen')"
+                  onclick="verifyWork('${getWorkOrderId(w)}','reopen')"
                 >
                   Reject / Reopen
                 </button>
@@ -3031,7 +3087,7 @@ async function loadContractor() {
 
                           <button
                             class="btn primary"
-                            onclick="changeWork('${w.id}','Accepted')"
+                            onclick="changeWork('${getWorkOrderId(w)}','Accepted')"
                           >
                             Accept Work
                           </button>
@@ -3049,7 +3105,7 @@ async function loadContractor() {
 
                           <button
                             class="btn primary"
-                            onclick="changeWork('${w.id}','In Progress')"
+                            onclick="changeWork('${getWorkOrderId(w)}','In Progress')"
                           >
                             Start Repair
                           </button>
@@ -3065,18 +3121,12 @@ async function loadContractor() {
 
                         ? `
 
-                          <label class="btn primary">
-
+                          <button
+                            class="btn primary"
+                            onclick="startContractorCapture('${getWorkOrderId(w)}')"
+                          >
                             Capture After Image
-
-                            <input
-                              type="file"
-                              accept="image/*"
-                              hidden
-                              onchange="completeRepair('${w.id}',event)"
-                            >
-
-                          </label>
+                          </button>
 
                         `
 
@@ -3160,18 +3210,151 @@ async function changeWork(
 }
 
 
+async function startContractorCapture(id) {
+
+  closeContractorCapture();
+  contractorCapture.workOrder = workOrders.find(
+    workOrder => getWorkOrderId(workOrder) === id
+  );
+
+  if (!contractorCapture.workOrder) {
+    toast("Work order details are unavailable. Refresh and try again.");
+    return;
+  }
+
+  try {
+    contractorCapture.stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" } },
+      audio: false
+    });
+    $("contractor-camera").srcObject = contractorCapture.stream;
+    $("contractor-capture-status").textContent =
+      "Capture the repair at the original pothole location.";
+    $("contractor-capture").classList.remove("hidden");
+  } catch (error) {
+    toast("Camera access is required to capture repair evidence.");
+    console.warn(error);
+  }
+
+}
+
+
+function closeContractorCapture() {
+
+  if (contractorCapture.stream) {
+    contractorCapture.stream.getTracks().forEach(track => track.stop());
+    contractorCapture.stream = null;
+  }
+
+  if ($("contractor-camera"))
+    $("contractor-camera").srcObject = null;
+
+  if ($("contractor-capture"))
+    $("contractor-capture").classList.add("hidden");
+
+}
+
+
+function distanceInMeters(latitude1, longitude1, latitude2, longitude2) {
+
+  const earthRadius = 6371000;
+  const toRadians = value => value * Math.PI / 180;
+  const deltaLatitude = toRadians(latitude2 - latitude1);
+  const deltaLongitude = toRadians(longitude2 - longitude1);
+  const a = Math.sin(deltaLatitude / 2) ** 2 +
+    Math.cos(toRadians(latitude1)) *
+    Math.cos(toRadians(latitude2)) *
+    Math.sin(deltaLongitude / 2) ** 2;
+
+  return earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+}
+
+
+function getCurrentPosition() {
+
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error("Location is not supported by this browser."));
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      enableHighAccuracy: true,
+      timeout: 15000,
+      maximumAge: 0
+    });
+  });
+
+}
+
+
+async function captureContractorEvidence() {
+
+  const workOrder = contractorCapture.workOrder;
+  const video = $("contractor-camera");
+
+  if (!workOrder || !video.videoWidth) {
+    toast("Camera is not ready.");
+    return;
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext("2d").drawImage(video, 0, 0);
+  const imageBlob = await new Promise(resolve =>
+    canvas.toBlob(resolve, "image/jpeg", 0.9)
+  );
+
+  if (!imageBlob) {
+    toast("Could not capture the image. Try again.");
+    return;
+  }
+
+  $("contractor-capture-status").textContent = "Reading GPS location...";
+
+  try {
+    const position = await getCurrentPosition();
+    const latitude = position.coords.latitude;
+    const longitude = position.coords.longitude;
+    const original = workOrder.complaints;
+    const distance = distanceInMeters(
+      original.latitude,
+      original.longitude,
+      latitude,
+      longitude
+    );
+
+    if (distance > 20) {
+      $("contractor-capture-status").textContent =
+        `You are ${distance.toFixed(1)} m from the pothole. Move within 20 m and capture again.`;
+      return;
+    }
+
+    await completeRepair(
+      getWorkOrderId(workOrder),
+      imageBlob,
+      latitude,
+      longitude,
+      position.coords.accuracy || null
+    );
+  } catch (error) {
+    $("contractor-capture-status").textContent =
+      "Location access is required. Enable GPS and capture again.";
+    toast(error.message || "Could not verify your location.");
+  }
+
+}
+
+
 async function completeRepair(
   id,
-  e
+  imageBlob,
+  latitude,
+  longitude,
+  accuracy
 ) {
-
-  const file =
-    e.target.files[0];
-
-
-  if (!file)
-    return;
-
 
   const path =
     `repairs/${currentUser.id}/${id}-${Date.now()}.jpg`;
@@ -3189,11 +3372,11 @@ async function completeRepair(
         )
         .upload(
           path,
-          file,
+          imageBlob,
           {
             upsert: true,
             contentType:
-              file.type
+              "image/jpeg"
           }
         );
 
@@ -3211,8 +3394,10 @@ async function completeRepair(
           target_work_order_id:
             id,
 
-          target_after_url:
-            path
+          target_after_url: path,
+          target_latitude: latitude,
+          target_longitude: longitude,
+          target_accuracy: accuracy
         }
       );
 
@@ -3224,6 +3409,8 @@ async function completeRepair(
     toast(
       "After-repair evidence submitted."
     );
+
+    closeContractorCapture();
 
 
     loadContractor();

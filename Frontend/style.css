@@ -67,6 +67,37 @@ button,
   border-color:#fecdd3
 }
 
+.capture-dialog{
+  position:fixed;
+  inset:0;
+  z-index:2000;
+  display:grid;
+  place-items:center;
+  padding:20px;
+  background:#071b3599
+}
+
+.capture-dialog-card{
+  width:min(520px,100%);
+  padding:22px;
+  border-radius:16px;
+  background:#fff;
+  box-shadow:0 20px 60px #071b3540
+}
+
+.capture-dialog-card h2{
+  margin-top:0
+}
+
+.capture-dialog-card video{
+  display:block;
+  width:100%;
+  aspect-ratio:4/3;
+  object-fit:cover;
+  border-radius:10px;
+  background:#071b35
+}
+
 .topbar{
   height:68px;
   background:var(--navy);

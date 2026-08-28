@@ -745,6 +745,11 @@
           <b id="result-depth">—</b>
         </div>
 
+        <div>
+          <span>Severity range</span>
+          <b id="result-severity-range">—</b>
+        </div>
+
       </div>
 
     </div>
@@ -1058,6 +1063,29 @@
   id="toast"
   class="toast"
 ></div>
+
+<div
+  id="contractor-capture"
+  class="capture-dialog hidden"
+  role="dialog"
+  aria-modal="true"
+>
+  <div class="capture-dialog-card">
+    <h2>Capture repair evidence</h2>
+    <video id="contractor-camera" autoplay playsinline></video>
+    <p id="contractor-capture-status" class="muted">
+      Take the after-repair photo at the original pothole location.
+    </p>
+    <div class="actions">
+      <button class="btn primary" onclick="captureContractorEvidence()">
+        Capture image
+      </button>
+      <button class="btn" onclick="closeContractorCapture()">
+        Cancel
+      </button>
+    </div>
+  </div>
+</div>
 
 </main>
 
