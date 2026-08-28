@@ -10,6 +10,10 @@ const SUPABASE_PUBLISHABLE_KEY =
   "sb_publishable_nBBSroTBJ2xA2mhVGWIqDg_QreS1dwI";
 
 const DETECTION_API_URL =
+  (window.DETECTION_API_URL &&
+    !window.DETECTION_API_URL.includes("YOUR-API-DOMAIN")
+      ? window.DETECTION_API_URL
+      : null) ||
   "http://127.0.0.1:8000/detect";
 
 const supabaseClient =

@@ -3,6 +3,7 @@
 import base64
 import io
 import json
+import os
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -13,8 +14,8 @@ from ultralytics import YOLO
 
 ROOT = Path(__file__).resolve().parent
 MODEL_PATH = ROOT / "runs" / "pothole" / "weights" / "best.pt"
-HOST = "127.0.0.1"
-PORT = 8000
+HOST = os.getenv("HOST", "127.0.0.1")
+PORT = int(os.getenv("PORT", "8000"))
 CONFIDENCE_THRESHOLD = 0.35
 MAX_REQUEST_BYTES = 20 * 1024 * 1024
 model = None

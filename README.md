@@ -324,6 +324,45 @@ http://127.0.0.1:5173/index.html
 
 Do not open the HTML file directly. Camera and geolocation permissions require a local web origin such as `127.0.0.1` or `localhost`.
 
+## Netlify Deployment
+
+Netlify hosts the static frontend only. It cannot run the Python YOLO server, so deploy the detection API separately first.
+
+### Deploy The Detection API
+
+Render, Railway, Fly.io, or another Python host can run the API. The following Render configuration is suitable for this repository:
+
+1. Create a new Web Service from the GitHub repository.
+2. Runtime: `Python 3`.
+3. Build command: `pip install -r requirements-ml.txt`.
+4. Start command: `python detect_server.py`.
+5. Set `HOST=0.0.0.0` if the host does not set it automatically.
+6. Deploy and copy the HTTPS service URL, for example `https://smartcity-api.onrender.com`.
+
+The repository must contain the trained model at `runs/pothole/weights/best.pt`. If `runs/` is ignored or not pushed to Git, upload the model as a release/artifact or change `MODEL_PATH` to a persistent model location provided by the host. Do not use the local `127.0.0.1` URL in production.
+
+Test the deployed API with:
+
+```bash
+curl -i -X OPTIONS https://YOUR-API-DOMAIN.onrender.com/detect
+```
+
+### Deploy The Frontend To Netlify
+
+1. Push the repository to GitHub.
+2. In Netlify, choose **Add new site** -> **Import an existing project**.
+3. Select the GitHub repository.
+4. Set **Base directory** to `Frontend`.
+5. Leave **Build command** empty.
+6. Set **Publish directory** to `Frontend` (or `.` when the base directory is `Frontend`).
+7. Deploy the site.
+8. Open `Frontend/index.html` and replace `https://YOUR-API-DOMAIN.onrender.com/detect` with the real API URL.
+9. Commit and push that change, then trigger a new Netlify deploy.
+
+The frontend already uses the Supabase project URL and publishable key. Supabase Auth, database RLS, and Storage policies must be configured in Supabase before the deployed site can log users in or save images.
+
+Use the Netlify HTTPS URL for camera and geolocation permissions. In the browser site settings, allow **Camera** and **Location**. The API must remain online while citizens upload images.
+
 ## Validation And Testing
 
 Syntax checks:
