@@ -1,4 +1,4 @@
-path: C:/Users/gopic/OneDrive/Agentic_Ai_Hackathon/pothole_dataset
+path: pothole_dataset
 train: train/images
 val: val/images
 test: test/images

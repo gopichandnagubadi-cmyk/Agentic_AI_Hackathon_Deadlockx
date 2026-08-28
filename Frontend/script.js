@@ -42,6 +42,8 @@ let report = {
   complaintId: null
 };
 
+let detectionRequestId = 0;
+
 let officerComplaints = [];
 let workOrders = [];
 let contractors = [];
@@ -632,6 +634,7 @@ async function logout() {
 function resetReport() {
 
   stopCamera();
+  detectionRequestId++;
 
 
   report = {
@@ -669,6 +672,9 @@ function resetReport() {
 
 
   $("report-file").value = "";
+
+  $("detection-alert").className = "detection-alert hidden";
+  $("detection-alert").textContent = "";
 
   $("report-notes").value = "";
 
@@ -877,6 +883,7 @@ function capturePhoto() {
   closeCamera();
 
   validateReport();
+  analyzeReportImage();
 
 }
 
@@ -923,6 +930,7 @@ function handleReportFile(e) {
 
 
       validateReport();
+      analyzeReportImage();
 
     };
 
@@ -1308,11 +1316,70 @@ function validateReport() {
   $("submit-report").disabled =
     !(
       report.image &&
+      report.detection?.is_pothole === true &&
       validateCoords(
         report.lat,
         report.lng
       )
     );
+
+}
+
+
+function showDetectionAlert(message, kind = "error") {
+
+  const alert = $("detection-alert");
+
+  if (!alert)
+    return;
+
+  alert.textContent = message;
+  alert.className = `detection-alert ${kind}`;
+
+}
+
+
+async function analyzeReportImage() {
+
+  if (!report.image)
+    return;
+
+  const requestId = ++detectionRequestId;
+  report.detection = null;
+  validateReport();
+  showDetectionAlert("Checking image for a pothole...", "pending");
+
+  try {
+    const detection = await detectReportImage();
+
+    if (requestId !== detectionRequestId)
+      return;
+
+    report.detection = detection;
+
+    if (detection.is_pothole === true) {
+      showDetectionAlert("Pothole detected. You can continue with this report.", "success");
+    } else {
+      showDetectionAlert(
+        detection.message || "This image does not contain a pothole. Please upload another image.",
+        "error"
+      );
+    }
+
+    validateReport();
+  } catch (error) {
+    if (requestId !== detectionRequestId)
+      return;
+
+    report.detection = {
+      available: false,
+      is_pothole: false,
+      message: "The pothole detector is unavailable. Start the detection API and try another image."
+    };
+    showDetectionAlert(report.detection.message, "error");
+    validateReport();
+    console.warn(error);
+  }
 
 }
 
@@ -1444,6 +1511,7 @@ async function submitComplaint() {
 
   if (
     !report.image ||
+    report.detection?.is_pothole !== true ||
     !validateCoords(
       report.lat,
       report.lng
@@ -1451,7 +1519,8 @@ async function submitComplaint() {
   ) {
 
     toast(
-      "Image and location are required."
+      report.detection?.message ||
+      "A pothole image and location are required."
     );
 
     return;
@@ -1516,16 +1585,6 @@ async function submitComplaint() {
 
 
   try {
-
-    try {
-      report.detection = await detectReportImage();
-    } catch (detectionError) {
-      report.detection = {
-        available: false,
-        message: "AI detection service is unavailable."
-      };
-      console.warn(detectionError);
-    }
 
     const complaintId =
       "CR-" +

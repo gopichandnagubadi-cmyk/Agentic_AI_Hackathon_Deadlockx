@@ -41,6 +41,32 @@ button,
   display:none!important
 }
 
+.detection-alert{
+  margin-top:12px;
+  padding:12px 14px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  font-size:13px;
+  line-height:1.45
+}
+
+.detection-alert.pending{
+  color:var(--muted);
+  background:#f8fafc
+}
+
+.detection-alert.success{
+  color:var(--green);
+  background:#ecfdf5;
+  border-color:#a7f3d0
+}
+
+.detection-alert.error{
+  color:var(--red);
+  background:#fff1f2;
+  border-color:#fecdd3
+}
+
 .topbar{
   height:68px;
   background:var(--navy);
