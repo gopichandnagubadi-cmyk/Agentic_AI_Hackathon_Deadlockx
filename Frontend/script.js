@@ -26,7 +26,7 @@ const DETECTION_API_URL = (() => {
     return "http://127.0.0.1:8000/detect";
   }
 
-  return "https://YOUR-RENDER-SERVICE.onrender.com/detect";
+  return "https://pot-hole-detection-api.onrender.com/detect";
 })();
 
 const supabaseClient =
