@@ -1095,7 +1095,9 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-  window.DETECTION_API_URL = "https://YOUR-API-DOMAIN.onrender.com/detect";
+  // For local testing: use the Python detector on port 8000.
+  // For deployed frontend: replace this with the Render URL, e.g. https://your-app.onrender.com/detect
+  window.DETECTION_API_URL = "http://127.0.0.1:8000/detect";
 </script>
 
 <script src="script.js"></script>

@@ -9,8 +9,25 @@ const SUPABASE_URL =
 const SUPABASE_PUBLISHABLE_KEY =
   "sb_publishable_nBBSroTBJ2xA2mhVGWIqDg_QreS1dwI";
 
-const DETECTION_API_URL ="https://YOUR-RENDER-SERVICE.onrender.com/detect"
-  
+const DETECTION_API_URL = (() => {
+  const configured =
+    typeof window !== "undefined" &&
+    window.DETECTION_API_URL &&
+    String(window.DETECTION_API_URL).trim();
+
+  if (configured && !configured.includes("YOUR-API-DOMAIN") && !configured.includes("YOUR-RENDER-SERVICE")) {
+    return configured;
+  }
+
+  if (
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1"
+  ) {
+    return "http://127.0.0.1:8000/detect";
+  }
+
+  return "https://YOUR-RENDER-SERVICE.onrender.com/detect";
+})();
 
 const supabaseClient =
   supabase.createClient(
@@ -1418,14 +1435,17 @@ async function analyzeReportImage() {
     if (requestId !== detectionRequestId)
       return;
 
+    const apiMessage =
+      `The pothole detector is unavailable at ${DETECTION_API_URL}. Start the local detection API or update the deployed API URL and try another image.`;
+
     report.detection = {
       available: false,
       is_pothole: false,
-      message: "The pothole detector is unavailable. Start the detection API and try another image."
+      message: apiMessage
     };
     showDetectionAlert(report.detection.message, "error");
     validateReport();
-    console.warn(error);
+    console.warn("Detection API call failed:", error, "URL:", DETECTION_API_URL);
   }
 
 }
