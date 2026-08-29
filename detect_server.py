@@ -46,7 +46,24 @@ class DetectionHandler(BaseHTTPRequestHandler):
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
-        self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.end_headers()
+
+    def do_GET(self):
+        if self.path in ("/", "/health"):
+            self._send(200, {"status": "ok", "message": "Detection API healthy"})
+            return
+        self._send(405, {"error": "Method not allowed. Use POST /detect."})
+
+    def do_HEAD(self):
+        if self.path in ("/", "/health"):
+            self.send_response(200)
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            return
+        self.send_response(405)
+        self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
 
     def do_POST(self):
