@@ -14,7 +14,7 @@ from ultralytics import YOLO
 
 ROOT = Path(__file__).resolve().parent
 MODEL_PATH = ROOT / "runs" / "pothole" / "weights" / "best.pt"
-HOST = os.getenv("HOST", "127.0.0.1")
+HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", "8000"))
 CONFIDENCE_THRESHOLD = 0.35
 MAX_REQUEST_BYTES = 20 * 1024 * 1024
